@@ -30,6 +30,41 @@
 ;;; Code:
 (require 'denote)
 
+(defgroup denote-weibian nil
+  "Extensions that integrate Denote with Weibian."
+  :group 'denote)
+
+(defconst denote-weibian-transclusion-prompt-types
+  '(show-metadata expanded disable-numbering demote-headings)
+  "Supported prompt symbols for `denote-weibian-transclusion-prompts'.")
+
+(defcustom denote-weibian-transclusion-prompts nil
+  "Specify the prompts followed by `denote-weibian-transclude'.
+
+The value of this user option is a list of symbols, which includes any
+of the following:
+
+- `show-metadata': Prompt for the `show-metadata' argument of `#tr'.
+
+- `expanded': Prompt for the `expanded' argument of `#tr'.
+
+- `disable-numbering': Prompt for the `disable-numbering' argument of
+  `#tr'.
+
+- `demote-headings': Prompt for the `demote-headings' argument of `#tr'.
+
+The prompts occur in the given order.
+
+If the value of this user option is nil, no transclusion option prompts
+are used."
+  :group 'denote-weibian
+  :type '(radio (const :tag "Use no prompts" nil)
+                (set :tag "Available prompts" :greedy t
+                     (const :tag "Show metadata" show-metadata)
+                     (const :tag "Expanded" expanded)
+                     (const :tag "Disable numbering" disable-numbering)
+                     (const :tag "Demote headings" demote-headings))))
+
 (defvar denote-weibian-front-matter
   "#import \"/_template/template.typ\": template, tr, ln, ct, inline-tree
 #show: template(
@@ -171,7 +206,7 @@ Consult the `denote-file-types' for how this is used."
     :date-value-function denote-weibian-format-date
     :date-value-reverse-function denote-weibian-extract-date-from-front-matter))
 
-(defun denote-weibian-format-transclude (file)
+(defun denote-weibian-format-transclude (file &optional show-metadata expanded disable-numbering demote-headings)
   "Prepare transclusion to FILE."
   (let* ((identifier (denote-retrieve-filename-identifier file)))
     (format
