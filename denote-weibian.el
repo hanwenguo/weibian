@@ -5,7 +5,7 @@
 ;; Author: Hanwen Guo <guo@hanwen.io>
 ;; Maintainer: Hanwen Guo <guo@hanwen.io>
 ;; URL: https://github.com/hanwenguo/weibian
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Package-Requires: ((emacs "28.1") (denote "4.0.0"))
 
 ;; This file is NOT part of GNU Emacs.
@@ -152,7 +152,7 @@ Consult the `denote-file-types' for how this is used."
   `(weibian
     :extension ".typ"
     :front-matter denote-weibian-front-matter
-    :link-retrieval-format "\"wb:%VALUE%\""
+    :link-retrieval-format "#ln(\"wb:%VALUE%\")"
     :link denote-weibian-link-format
     :link-in-context-regexp denote-weibian-link-in-context-regexp
     :title-key-regexp ,denote-weibian-title-key-regexp
@@ -211,17 +211,6 @@ the active region specially, is up to it."
   (denote--delete-active-region-content)
   (insert (format denote-weibian-transclusion-format
                   (denote-retrieve-filename-identifier file))))
-
-(defun denote-weibian-backlinks-query-regexp (id)
-  "Return a regexp to query contexts of file with ID."
-  (rx
-   "#ln("
-   (zero-or-more blank)
-   "\"wb:"
-   (literal id)
-   "\""
-   (zero-or-more blank)
-   ")"))
 
 (defun denote-weibian-contexts-query-regexp (id)
   "Return a regexp to query contexts of file with ID."
@@ -312,7 +301,7 @@ Place the buffer below the current window or wherever the user option
 
 (defun denote-weibian-get-contexts (&optional file)
   "Return list of contexts in current or optional FILE.
-Also see `denote-link-return-backlinks'."
+Also see `denote-get-backlinks'."
   (when-let* ((current-file (or file (buffer-file-name)))
               (id (or (denote-retrieve-filename-identifier current-file)
                       (user-error "The file does not have a Denote identifier")))
@@ -356,71 +345,30 @@ Alo see `denote-find-link'."
               (fetcher (lambda () (xref-matches-in-files query files))))
     (xref-show-definitions-completing-read fetcher nil)))
 
-;;;###autoload
-(defun denote-weibian-backlinks ()
-  "Produce a buffer with backlinks to the current note.
+(define-obsolete-function-alias
+  'denote-weibian-backlinks
+  'denote-backlinks
+  "0.2.0")
 
-Show the names of files linking to the current file.  Include the
-context of each link if the user option `denote-backlinks-show-context'
-is non-nil.
+(define-obsolete-function-alias
+  'denote-weibian-show-backlinks-buffer
+  'denote-show-backlinks-buffer
+  "0.2.0")
 
-Place the buffer below the current window or wherever the user option
-`denote-backlinks-display-buffer-action' specifies."
-  (interactive)
-  (if-let* ((file buffer-file-name))
-      (if-let* ((identifier (denote-retrieve-filename-identifier file)))
-          (when-let* ((query (denote-weibian-backlinks-query-regexp identifier)))
-            (funcall denote-query-links-buffer-function
-                     query nil
-                     (denote--backlinks-get-buffer-name file identifier)
-                     denote-backlinks-display-buffer-action))
-        (user-error "The current file does not have a Denote identifier"))
-    (user-error "Buffer `%s' is not associated with a file" (current-buffer))))
+(define-obsolete-function-alias
+  'denote-weibian-get-backlinks
+  'denote-get-backlinks
+  "0.2.0")
 
-(defalias 'denote-weibian-show-backlinks-buffer 'denote-weibian-backlinks
-  "Alias for `denote-weibian-backlinks' command.")
+(define-obsolete-function-alias
+  'denote-weibian-find-backlink
+  'denote-find-backlink
+  "0.2.0")
 
-(defun denote-weibian-get-backlinks (&optional file)
-  "Return list of backlinks in current or optional FILE.
-Also see `denote-get-links'."
-  (when-let* ((current-file (or file (buffer-file-name)))
-              (id (or (denote-retrieve-filename-identifier current-file)
-                      (user-error "The file does not have a Denote identifier")))
-              (_ (denote-file-is-in-denote-directory-p current-file))
-              (xrefs (denote-weibian-retrieve-xref-alist-for-mention
-                      id
-                      denote-weibian-link-in-context-regexp)))
-    (mapcar #'car xrefs)))
-
-;;;###autoload
-(defun denote-weibian-find-backlink ()
-  "Use minibuffer completion to visit backlink to current file.
-Visit the file itself, not the location where the link is.  For a
-context-sensitive operation, use `denote-find-backlink-with-location'.
-
-Alo see `denote-find-link'."
-  (declare (interactive-only t))
-  (interactive)
-  (when-let* ((current-file buffer-file-name)
-              (_ (or (denote-retrieve-filename-identifier current-file)
-                     (user-error "The current file does not have a Denote identifier")))
-              (links (or (denote-weibian-get-backlinks current-file)
-                         (user-error "No backlinks found")))
-              (selected (denote-select-from-files-prompt links "Select among BACKLINKS")))
-    (find-file selected)))
-
-;;;###autoload
-(defun denote-weibian-find-backlink-with-location ()
-  "Like `denote-find-backlink' but jump to the exact location of the link."
-  (declare (interactive-only t))
-  (interactive)
-  (when-let* ((current-file buffer-file-name)
-              (id (or (denote-retrieve-filename-identifier current-file)
-                      (user-error "The current file does not have a Denote identifier")))
-              (query (denote-weibian-backlinks-query-regexp id))
-              (files (denote-directory-files nil :omit-current :text-only))
-              (fetcher (lambda () (xref-matches-in-files query files))))
-    (xref-show-definitions-completing-read fetcher nil)))
+(define-obsolete-function-alias
+  'denote-weibian-find-backlink-with-location
+  'denote-find-backlink-with-location
+  "0.2.0")
 
 (provide 'denote-weibian)
 ;;; denote-weibian.el ends here

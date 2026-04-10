@@ -68,7 +68,7 @@ If you use Emacs, Weibian is accompanied by an Emacs Lisp package providing the 
   :load-path "/path/to/weibian/directory/"
   :after (denote)
   :demand t
-  :bind (("C-c n b" . denote-weibian-backlinks)
+  :bind (("C-c n b" . denote-backlinks)
          ("C-c n c" . denote-weibian-contexts)
          ("C-c n t" . denote-weibian-transclude))
   :config
