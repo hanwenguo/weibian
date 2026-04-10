@@ -114,7 +114,7 @@
         set text(fill: luma(50%))
         taxon
       }
-      context if counter("transclusion-depth").get().at(0) != 0 {
+      context if counter("transclusion-depth").get().at(0) != 0 and not state("disable-numbering", false).get() {
         counter(heading).step(level: counter("transclusion-depth").get().at(0))
       }
       context if counter(heading).get().at(0) != 0 and not state("disable-numbering", false).get() {
