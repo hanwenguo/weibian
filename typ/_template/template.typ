@@ -212,6 +212,7 @@
   title: none,
   expanded: true,
   disable-numbering: false,
+  level: 2,
   ..attrs,
 ) = {
   let details-attrs = if expanded {
@@ -224,7 +225,7 @@
     html.details(
       {
         _summary_header(
-          level: 2,
+          level: level,
           inline: true,
           disable-numbering: disable-numbering,
           identifier: identifier,
