@@ -179,7 +179,7 @@ Consult the `denote-file-types' for how this is used."
 (defvar denote-weibian-link-format "#ln(\"wb:%s\")[%s]")
 (defvar denote-weibian-link-in-context-regexp
   "#ln([[:blank:]]*\"wb:\\(?1:[^\"()]+?\\)\"[[:blank:]]*)\\[\\(?2:.*?\\)\\]")
-(defvar denote-weibian-transclusion-format "#tr(\"wb:%s\"")
+(defvar denote-weibian-transclusion-format "#tr(\"wb:%s\"%s)")
 (defvar denote-weibian-transclusion-in-context-regexp
   "#tr([[:blank:]]*\"wb:\\(?1:[^\"()]+?\\)\"")
 
@@ -206,12 +206,59 @@ Consult the `denote-file-types' for how this is used."
     :date-value-function denote-weibian-format-date
     :date-value-reverse-function denote-weibian-extract-date-from-front-matter))
 
-(defun denote-weibian-format-transclude (file &optional show-metadata expanded disable-numbering demote-headings)
-  "Prepare transclusion to FILE."
-  (let* ((identifier (denote-retrieve-filename-identifier file)))
-    (format
-     denote-weibian-transclusion-format
-     identifier)))
+(defun denote-weibian--transclusion-option-key (option)
+  "Return plist key for transclusion OPTION."
+  (intern (format ":%s" option)))
+
+(defun denote-weibian--format-transclusion-boolean (value)
+  "Format boolean VALUE for Typst transclusion options."
+  (if value "true" "false"))
+
+(defun denote-weibian--format-transclusion-integer (value)
+  "Format non-negative integer VALUE for Typst transclusion options."
+  (unless (natnump value)
+    (user-error "Transclusion option `demote-headings' must be a non-negative integer"))
+  (number-to-string value))
+
+(defun denote-weibian--format-transclusion-option (option value)
+  "Format Typst transclusion OPTION with VALUE."
+  (pcase option
+    ('show-metadata
+     (format "show-metadata: %s"
+             (denote-weibian--format-transclusion-boolean value)))
+    ('expanded
+     (format "expanded: %s"
+             (denote-weibian--format-transclusion-boolean value)))
+    ('disable-numbering
+     (format "disable-numbering: %s"
+             (denote-weibian--format-transclusion-boolean value)))
+    ('demote-headings
+     (format "demote-headings: %s"
+             (denote-weibian--format-transclusion-integer value)))
+    (_ (user-error "Unknown transclusion option `%s'" option))))
+
+(defun denote-weibian-format-transclude (file &rest options)
+  "Prepare transclusion to FILE with Typst OPTIONS.
+
+OPTIONS is a plist whose recognized keys are `:show-metadata',
+`:expanded', `:disable-numbering', and `:demote-headings'.  Omitted
+keys are not written to the resulting `#tr' call."
+  (let* ((identifier (denote-retrieve-filename-identifier file))
+         (arguments '()))
+    (unless identifier
+      (user-error "The transcluded file does not have a Denote identifier"))
+    (dolist (option denote-weibian-transclusion-prompt-types)
+      (let ((key (denote-weibian--transclusion-option-key option)))
+        (when (plist-member options key)
+          (push (denote-weibian--format-transclusion-option
+                 option
+                 (plist-get options key))
+                arguments))))
+    (format denote-weibian-transclusion-format
+            identifier
+            (if arguments
+                (concat ", " (mapconcat #'identity (nreverse arguments) ", "))
+              ""))))
 
 ;;;###autoload
 (defun denote-weibian-transclude (file &optional id-only)
@@ -244,8 +291,7 @@ the active region specially, is up to it."
   (unless (file-exists-p file)
     (user-error "The linked file does not exist"))
   (denote--delete-active-region-content)
-  (insert (format denote-weibian-transclusion-format
-                  (denote-retrieve-filename-identifier file))))
+  (insert (denote-weibian-format-transclude file)))
 
 (defun denote-weibian-contexts-query-regexp (id)
   "Return a regexp to query contexts of file with ID."
