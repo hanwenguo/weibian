@@ -74,8 +74,14 @@ If you use Emacs, Weibian is accompanied by an Emacs Lisp package providing the 
   :config
   (push denote-weibian-file-type denote-file-types)
 
+  ;; Optional: prompt for selected #tr keyword arguments.
+  (setq denote-weibian-transclusion-prompts
+        '(show-metadata expanded))
+
   (setq denote-file-name-slug-functions
         '((title . denote-sluggify-title)
           (signature . identity)
           (keyword . denote-sluggify-keyword))))
 ```
+
+By default, `denote-weibian-transclude` inserts a bare `#tr("wb:ID")`, which leaves all optional arguments to the default values defined by your Typst template. Set `denote-weibian-transclusion-prompts` if you want to be asked for selected `#tr` options every time. For a one-off insertion that prompts for all transclusion options, call `denote-weibian-transclude` with `C-u`.
