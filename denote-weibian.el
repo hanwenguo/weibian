@@ -56,7 +56,10 @@ of the following:
 The prompts occur in the given order.
 
 If the value of this user option is nil, no transclusion option prompts
-are used."
+are used.
+
+With a prefix argument, `denote-weibian-transclude' prompts for all
+available transclusion options once."
   :group 'denote-weibian
   :type '(radio (const :tag "Use no prompts" nil)
                 (set :tag "Available prompts" :greedy t
@@ -260,38 +263,89 @@ keys are not written to the resulting `#tr' call."
                 (concat ", " (mapconcat #'identity (nreverse arguments) ", "))
               ""))))
 
+(defun denote-weibian--prompt-transclusion-boolean (prompt default)
+  "Prompt for boolean transclusion option with PROMPT and DEFAULT."
+  (let ((completion-ignore-case t))
+    (string= (completing-read
+              (format "%s (default %s): "
+                      prompt
+                      (denote-weibian--format-transclusion-boolean default))
+              '("true" "false")
+              nil t nil nil
+              (denote-weibian--format-transclusion-boolean default))
+             "true")))
+
+(defun denote-weibian--prompt-transclusion-show-metadata ()
+  "Prompt for the `show-metadata' transclusion option."
+  (denote-weibian--prompt-transclusion-boolean "Show metadata" nil))
+
+(defun denote-weibian--prompt-transclusion-expanded ()
+  "Prompt for the `expanded' transclusion option."
+  (denote-weibian--prompt-transclusion-boolean "Expanded" t))
+
+(defun denote-weibian--prompt-transclusion-disable-numbering ()
+  "Prompt for the `disable-numbering' transclusion option."
+  (denote-weibian--prompt-transclusion-boolean "Disable numbering" nil))
+
+(defun denote-weibian--prompt-transclusion-demote-headings ()
+  "Prompt for the `demote-headings' transclusion option."
+  (let ((value (read-number "Demote headings (default 1): " 1)))
+    (unless (natnump value)
+      (user-error "Transclusion option `demote-headings' must be a non-negative integer"))
+    value))
+
+(defun denote-weibian--prompt-transclusion-option (option)
+  "Prompt for transclusion OPTION and return its value."
+  (pcase option
+    ('show-metadata
+     (denote-weibian--prompt-transclusion-show-metadata))
+    ('expanded
+     (denote-weibian--prompt-transclusion-expanded))
+    ('disable-numbering
+     (denote-weibian--prompt-transclusion-disable-numbering))
+    ('demote-headings
+     (denote-weibian--prompt-transclusion-demote-headings))
+    (_
+     (user-error "Unknown transclusion prompt `%s'" option))))
+
+(defun denote-weibian--prompt-transclusion-options (prompts)
+  "Prompt for PROMPTS and return a plist of transclusion options."
+  (let (options)
+    (dolist (option prompts)
+      (setq options
+            (plist-put options
+                       (denote-weibian--transclusion-option-key option)
+                       (denote-weibian--prompt-transclusion-option option))))
+    options))
+
 ;;;###autoload
-(defun denote-weibian-transclude (file &optional id-only)
-  "Create transclusion to FILE in variable `denote-directory' with DESCRIPTION.
+(defun denote-weibian-transclude (file &rest options)
+  "Insert transclusion to FILE using Typst OPTIONS.
 
-When called interactively, prompt for FILE using completion.
-
-Return the DESCRIPTION of the link in the format specified by
-`denote-link-description-format'.  The default is to return the text of
-the active region or the title of the note (plus the signature if
-present).
-
-With optional ID-ONLY as a non-nil argument, such as with a universal
-prefix (\\[universal-argument]), insert links with just the identifier
-and no further description.  In this case, the link format is always
-[[denote:IDENTIFIER]].
-
-If the DESCRIPTION is empty, format the link the same as with ID-ONLY.
+When called interactively, prompt for FILE using completion.  Prompt for
+transclusion options according to `denote-weibian-transclusion-prompts'.
+With a prefix argument (\\[universal-argument]), prompt for all
+available transclusion options once.
 
 When called from Lisp, FILE is a string representing a full file system
-path.  FILE-TYPE is a symbol as described in the user option
-`denote-file-type'.  DESCRIPTION is a string.  Whether the caller treats
-the active region specially, is up to it."
+path.  OPTIONS is a plist whose recognized keys are
+`:show-metadata', `:expanded', `:disable-numbering', and
+`:demote-headings'.  Omit a key from OPTIONS to use the default value
+defined by the Typst `#tr' template."
   (interactive
-   (let* ((file (denote-file-prompt nil "Link to FILE" nil :has-identifier)))
-     (list file current-prefix-arg)))
+   (let* ((file (denote-file-prompt nil "Transclude FILE" nil :has-identifier))
+          (prompts (if current-prefix-arg
+                       denote-weibian-transclusion-prompt-types
+                     denote-weibian-transclusion-prompts))
+          (options (denote-weibian--prompt-transclusion-options prompts)))
+     (cons file options)))
   (unless (or (denote--file-type-org-extra-p)
               (and buffer-file-name (denote-file-has-supported-extension-p buffer-file-name)))
     (user-error "The current file type is not recognized by Denote"))
   (unless (file-exists-p file)
-    (user-error "The linked file does not exist"))
+    (user-error "The transcluded file does not exist"))
   (denote--delete-active-region-content)
-  (insert (denote-weibian-format-transclude file)))
+  (insert (apply #'denote-weibian-format-transclude file options)))
 
 (defun denote-weibian-contexts-query-regexp (id)
   "Return a regexp to query contexts of file with ID."
