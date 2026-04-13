@@ -96,7 +96,6 @@
   block(width: 100%, [
     #set text(font: serif-fonts, size: 11pt)
     #if metadata-entries.len() != 0 { metadata-entries.join([ #sym.dot.c ]) }
-    #if metadata-entries.len() != 0 { v(0.5em) }
   ])
 }
 
@@ -176,7 +175,7 @@
   show list: set par(justify: false)
 
 
-  show heading.where(depth: 1): it => {
+  show heading.where(level: 1): it => {
     let title = it.body
     {
       set text(hyphenate: false, size: 20pt, font: serif-fonts)
@@ -185,22 +184,22 @@
     }
   }
 
-  show heading.where(depth: 2): it => {
-    v(1.3em, weak: true)
+  show heading.where(level: 2): it => {
+    v(1.6em, weak: true)
     text(size: 14pt, weight: "bold", font: serif-fonts, it)
-    v(1em, weak: true)
+    v(1.3em, weak: true)
   }
 
-  show heading.where(depth: 3): it => {
+  show heading.where(level: 3): it => {
     v(1.3em, weak: true)
     text(size: 13pt, weight: "regular", font: serif-fonts, it)
-    v(1em, weak: true)
+    v(1.3em, weak: true)
   }
 
-  show heading.where(depth: 4): it => {
+  show heading.where(level: 4): it => {
     v(1em, weak: true)
     text(size: 11pt, weight: "light", font: serif-fonts, it)
-    v(0.65em, weak: true)
+    v(1em, weak: true)
   }
 
   set par(leading: 0.65em, first-line-indent: 0em, spacing: 1.3em)
@@ -244,6 +243,7 @@
   context state("expanded").update(expanded)
   context counter("transclusion-depth").step()
   context state("disable-numbering").update(disable-numbering)
+  context state("show-metadata").update(false)
   _main-part(
     body,
     identifier: identifier,
