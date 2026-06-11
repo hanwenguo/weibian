@@ -30,7 +30,8 @@ jobs:
       - name: Setup Typst
         uses: typst-community/setup-typst@v4
         with:
-          typst-version: ^0.14.0
+          typst-version: 0.15.0-rc.1
+          allow-prereleases: true
 
       - name: Build notes
         run: |

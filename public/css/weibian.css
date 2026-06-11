@@ -197,11 +197,7 @@ code {
 }
 
 math {
-  font-size: 1.12em;
-}
-
-mrow:hover {
-  background-color: var(--color-accent-hover);
+    font-family: "Libertinus Math", math;
 }
 
 .math-display {
