@@ -7,14 +7,14 @@
   identifier: "0008",
 )
 
-Weibian works by compiling a Typst bundle. The Rust program is intentionally thin: it discovers Typst files and public assets, generates a small entrypoint in memory, and pipes that entrypoint to the Typst 0.15 RC compiler. Rendering behavior lives in Typst templates.
+Weibian works by compiling a Typst bundle. The process is intentionally thin: it discovers Typst files and public assets, generates a small entrypoint in memory, and pipes that entrypoint to the Typst compiler which compiles to the bundle target. Rendering behavior lives in Typst templates.
 
 #inline-tree(
   identifier: "rendering-process",
   title: "Rendering Process",
   expanded: false
 )[
-To quickly get started, use the default templates in the `typ` directory in the repository of Weibian. Those templates define note pages, transclusions, links, citations, backmatter, table of contents, and optional PDF output using Typst's bundle export and introspection features.
+To quickly get started, use the default templates in the `typ` directory in the repository of Weibian. Those templates define note pages, transclusions, links, citations, backmatter, and table of contents using Typst's bundle export and introspection features.
 
 At compile time, Weibian scans `input_dir` recursively and collects `.typ` files whose paths match the configured include/exclude globs. These globs are matched relative to `input_dir`, and exclude rules have priority. Weibian then generates an entrypoint containing one root-relative include per discovered source:
 
@@ -44,7 +44,7 @@ The linking helpers such as `ln`, `ct`, and `tr` are ordinary Typst functions su
   identifier: "using-configuration-file",
   title: "Using Configuration File"
 )[
-Weibian supports a `.wb/config.toml` configuration file to set project options such as input/output directories, the public assets directory, include/exclude globs, and site options. CLI flags override config values.
+Weibian supports a `weibian.toml` configuration file in the current directory to set project options such as input/output directories, the public assets directory, include/exclude globs, and site options. CLI flags override config values.
 
 The following is an example configuration file:
 

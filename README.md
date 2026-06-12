@@ -53,7 +53,7 @@ wb compile \
   --pretty
 ```
 
-`--public-dir` is resolved relative to the input directory unless it is absolute, so `--public-dir public` means `typ/public`. Include/exclude globs in `.wb/config.toml` are matched against paths relative to the input directory. If you keep a handwritten bundle entrypoint such as `typ/index.typ`, exclude it explicitly to avoid duplicate `#document` or `#asset` output.
+`--public-dir` is resolved relative to the input directory unless it is absolute, so `--public-dir public` means `typ/public`. Include/exclude globs in `weibian.toml` are matched against paths relative to the input directory. If you keep a handwritten bundle entrypoint such as `typ/index.typ`, exclude it explicitly to avoid duplicate `#document` or `#asset` output.
 
 `wb compile` forwards Typst compile options such as `--input`, `--font-path`, `--package-path`, `--creation-timestamp`, `--pretty`, `--pages`, `--pdf-standard`, `--no-pdf-tags`, `--ppi`, `--deps`, `--deps-format`, `--jobs`, `--diagnostic-format`, `--open`, and `--timings`. Weibian owns the input/output paths, project root, output format, and feature flags, and always invokes Typst as bundle export with `bundle,html` enabled.
 

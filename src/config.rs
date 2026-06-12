@@ -11,7 +11,7 @@ use serde::{Deserialize, Deserializer};
 use crate::args::{CompileArgs, TypstCompileArgs};
 use crate::error::StrResult;
 
-const DEFAULT_CONFIG_PATH: &str = ".wb/config.toml";
+const DEFAULT_CONFIG_PATH: &str = "weibian.toml";
 
 #[derive(Debug, Default, Deserialize)]
 pub struct WeibianConfig {
@@ -279,7 +279,23 @@ mod tests {
 
     use crate::args::{CompileArgs, SiteArgs, TypstCompileArgs};
 
-    use super::{BuildConfig, FilesConfig, WeibianConfig};
+    use super::{BuildConfig, FilesConfig, WeibianConfig, load_config};
+
+    struct CurrentDirGuard(PathBuf);
+
+    impl CurrentDirGuard {
+        fn enter(path: &Path) -> Self {
+            let original = std::env::current_dir().expect("failed to get current dir");
+            std::env::set_current_dir(path).expect("failed to set current dir");
+            Self(original)
+        }
+    }
+
+    impl Drop for CurrentDirGuard {
+        fn drop(&mut self) {
+            std::env::set_current_dir(&self.0).expect("failed to restore current dir");
+        }
+    }
 
     fn temp_project(name: &str) -> PathBuf {
         let stamp = SystemTime::now()
@@ -306,6 +322,26 @@ mod tests {
             },
             typst: TypstCompileArgs::default(),
         }
+    }
+
+    #[test]
+    fn default_config_path_reads_weibian_toml_from_cwd() {
+        let root = temp_project("default-config-path");
+        fs::write(
+            root.join("weibian.toml"),
+            r#"
+                [files]
+                input_dir = "notes"
+                output_dir = "site"
+            "#,
+        )
+        .expect("failed to write config");
+
+        let _cwd = CurrentDirGuard::enter(&root);
+        let config = load_config(None).expect("default config should load");
+
+        assert_eq!(config.files.input_dir.as_deref(), Some(Path::new("notes")));
+        assert_eq!(config.files.output_dir.as_deref(), Some(Path::new("site")));
     }
 
     #[test]

@@ -1,8 +1,8 @@
-#import "/_template/template.typ": template, tr, ln
+#import "/_template/template.typ": ln, template, tr
 #show: template(
-  title:      [How to set up Weibian],
-  date:       datetime(year: 2025, month: 08, day: 19, hour: 22, minute: 12, second: 55),
-  tags:       (),
+  title: [How to set up Weibian],
+  date: datetime(year: 2025, month: 08, day: 19, hour: 22, minute: 12, second: 55),
+  tags: (),
   author: (ln("wb:hanwenguo")[Hanwen Guo],),
   identifier: "0007",
 )
@@ -19,15 +19,15 @@ Weibian uses a simple project structure to organize your notes and resources. Sa
 
 ```plain
 notes/
-├── .wb/        # Weibian configuration and templates
-│   ├── config.toml  # Configuration file (optional)
-│   ├── templates/   # HTML templates
-├── public/        # Resource files to be copied to output directory
+├── weibian.toml  # Configuration file (optional)
+├── dist/         # Default output directory
 │   └── ...
-├── dist/          # Default output directory
-│   └── ...
-└── typ/           # Note files in Typst format
+└── typ/          # Note files and Typst templates
+    ├── _template/
+    │   └── ...
+    ├── public/   # Bundle assets for the default public_dir
+    │   └── ...
     └── ...
 ```
 
-Most of the above directories is the default configuration, which can be overridden by passing command line arguments when running Weibian. The `.wb` directory is necessary for now, since it keeps the HTML template files and configuration file (if any). You must create the `.wb` directory manually for now; in the future, Weibian may provide a command to initialize a project structure automatically.
+Most of the above paths are the default configuration, which can be overridden by passing command line arguments or by adding `weibian.toml` in the project directory. Rendering behavior belongs in Typst templates under `typ/`.
