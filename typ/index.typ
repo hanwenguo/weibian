@@ -1,0 +1,15 @@
+#include "./@@hanwenguo==Person--hanwen-guo.typ"
+#include "./@@000A--weibian-blog.typ"
+#include "./@@0009--use-emacs-denote-package-to-write-in-weibian.typ"
+#include "./@@0008--writing-in-weibian.typ"
+#include "./@@0007--how-to-set-up-weibian.typ"
+#include "./blog/@@0000--design-thoughts-of-weibian.typ"
+#include "./blog/@@0001--typst-finds-a-sweet-spot-for-taking-scientific-notes.typ"
+#include "./blog/@@0002--taking-scientific-notes-need-modular-reusable-snippets-for-mathematics.typ"
+#include "./blog/@@0003--taking-scientific-notes-needs-full-power-mathematical-typesetting.typ"
+#include "./blog/@@0004--markdown-is-not-suitable-for-scientific-content-producing.typ"
+#include "./blog/@@0005--pure-latex-is-not-suitable-for-scientific-content-producing.typ"
+#include "./blog/@@000B--typst-is-an-awkward-choice-for-static-site-generators-yet.typ"
+#include "./@@index==Software--weibian.typ"
+
+#asset("css/weibian.css", read("./public/css/weibian.css"))
