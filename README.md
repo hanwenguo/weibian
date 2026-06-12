@@ -1,12 +1,12 @@
 # Weibian: A Note System Powered by Typst
 
-Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It compiles Typst notes to HTML, then post-processes the HTML to resolve transclusion, internal links, and backmatter (backlinks/contexts/references/related notes).
+Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It is now a thin wrapper around Typst's experimental bundle export: Weibian discovers notes and assets, generates a synthetic bundle entrypoint, and delegates rendering, links, transclusion, backmatter, HTML, and PDF output to Typst templates.
 
 There is a [demo site](https://hanwenguo.github.io/weibian/) showcasing Weibian's features, built with Weibian itself as a live example.
 
 ## Requirements
 
-- Typst CLI available on your PATH (`typst`)
+- Typst 0.15 RC CLI available on your PATH (`typst`) with the experimental `bundle` and `html` features
 - Rust toolchain only if building from source
 
 ## Installation
@@ -43,18 +43,23 @@ Using the installed binary:
 wb compile
 ```
 
-By default, Weibian reads Typst sources from `typ/`, compiles HTML in-memory, copies assets from `public/`, and outputs the final site to `dist/`. Override paths if needed:
+By default, Weibian reads Typst sources from `typ/`, copies bundle assets from `typ/public/`, and outputs the final Typst bundle to `dist/`. Override paths if needed:
 
 ```bash
 wb compile \
-  --input typ \
+  typ \
+  dist \
   --public-dir public \
-  --output dist
+  --pretty
 ```
+
+`--public-dir` is resolved relative to the input directory unless it is absolute, so `--public-dir public` means `typ/public`. Include/exclude globs in `.wb/config.toml` are matched against paths relative to the input directory. If you keep a handwritten bundle entrypoint such as `typ/index.typ`, exclude it explicitly to avoid duplicate `#document` or `#asset` output.
+
+`wb compile` forwards Typst compile options such as `--input`, `--font-path`, `--package-path`, `--creation-timestamp`, `--pretty`, `--pages`, `--pdf-standard`, `--no-pdf-tags`, `--ppi`, `--deps`, `--deps-format`, `--jobs`, `--diagnostic-format`, `--open`, and `--timings`. Weibian owns the input/output paths, project root, output format, and feature flags, and always invokes Typst as bundle export with `bundle,html` enabled.
 
 ## Features
 
-- Utilizes Typst HTML export: just use your templates/styles
+- Utilizes Typst bundle export: just use your Typst templates/styles
 - Out-of-the-box dark mode support
 - Transclusion of notes
 - Backmatter generation (backlinks, contexts, references, related notes)
@@ -64,13 +69,12 @@ wb compile \
 
 ## Planned
 
-- Customizable post-processing hooks
+- Watch mode
 - Datalog-based querying of notes
 - Generalized backmatter
 
 After the above features are implemented, Weibian will be feature-comparable to Forester. There are also some other nice-to-have features:
 
-- Watch mode
 - More templating support
 - Parallel processing of notes
 
@@ -88,7 +92,7 @@ Weibian is following the spirit of Forester. Main differences are now:
 
 ### [Kodama](https://github.com/kokic/kodama)
 
-Kodama is a similar project that uses Typst and Markdown to manage notes. The main difference is that Kodama uses Markdown as the primary note format with good Typst support, while  uses Typst as the only note format.
+Kodama is a similar project that uses Typst and Markdown to manage notes. The main difference is that Kodama uses Markdown as the primary note format with good Typst support, while Weibian uses Typst as the only note format.
 
 ### [Typsite](https://github.com/Glomzzz/typsite)
 

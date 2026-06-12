@@ -8,18 +8,11 @@ name = "wb"
 path = "src/main.rs"
 
 [dependencies]
-chrono = { version = "0.4.41", default-features = false, features = ["clock", "std"] }
 clap = { version = "4.5.40", features = ["derive", "env"] }
 codespan-reporting = "0.13.1"
 color-print = "0.3.7"
 ecow = "0.2.5"
-ego-tree = "0.6.2"
 globset = "0.4.16"
-html5ever = "0.27.0"
 figment = { version = "0.10.8", features = ["toml"] }
-pathdiff = "0.2.3"
-scraper = "0.19.1"
 serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.132"
-tera = "1.20.0"
 termcolor = "1.4.1"

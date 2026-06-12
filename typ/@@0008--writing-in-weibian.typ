@@ -7,63 +7,44 @@
   identifier: "0008",
 )
 
-Weibian works by exporting your notes written in Typst format to HTML using the HTML export feature of Typst, then post-processing the exported HTML files to create a website. Therefore, writing notes in Weibian is essentially writing Typst documents with some conventions. For a demonstration of these conventions, see the #link("https://github.com/hanwenguo/weibian")[repository of Weibian] itself.
+Weibian works by compiling a Typst bundle. The Rust program is intentionally thin: it discovers Typst files and public assets, generates a small entrypoint in memory, and pipes that entrypoint to the Typst 0.15 RC compiler. Rendering behavior lives in Typst templates.
 
 #inline-tree(
   identifier: "rendering-process",
   title: "Rendering Process",
   expanded: false
 )[
-This section describes the internal rendering process of Weibian. To quickly get started with writing in Weibian, you can skip this section for now and use the default templates in the `typ` directory in the repository of Weibian, which is also the template for this very site.
+To quickly get started, use the default templates in the `typ` directory in the repository of Weibian. Those templates define note pages, transclusions, links, citations, backmatter, table of contents, and optional PDF output using Typst's bundle export and introspection features.
 
-Weibian will first export each note in the input directory to HTML. This does not involve any special processing; the Typst files are compiled as-is, and user is responsible for generating HTML files with the Weibian conventions described below. The generated HTML is not used for display directly nor saved as file, but rather as an in-memory intermediate representation for further processing.
+At compile time, Weibian scans `input_dir` recursively and collects `.typ` files whose paths match the configured include/exclude globs. These globs are matched relative to `input_dir`, and exclude rules have priority. Weibian then generates an entrypoint containing one root-relative include per discovered source:
 
-In the `<body>` of the HTML, there could be three special custom elements: `<wb-transclusion target="wb:..." show-metadata="..." expanded="..." disable-numbering="..." demote-headings="..."></wb-transclusion>`, `<wb-internal-link target="wb:...">...</wb-internal-link>` and `<wb-cite target="wb:..."></wb-cite>`. 
-`<wb-transclusion>` is used to represent transcluded notes, `<wb-internal-link>` is used for internal links between notes, and `<wb-cite>` is used for citations to notes, which is basically a special kind of internal link.
-For `<wb-transclusion>`, its body must be empty; the `target` attribute, starting with `wb:`, specifies the ID (not including the `wb:` prefix) of the note to be transcluded, while `show-metadata` and `expanded` are boolean attributes that control the display of metadata and whether the transclusion is expanded by default, respectively; due to limitations in Typst's HTML export capabilities, their values are represented as strings ("true" or "false"). `disable-numbering` is a boolean attribute that controls whether to disable heading numbering in the transcluded content, and `demote-headings` is a non-negative integer attribute that controls how many levels to demote headings in the transcluded content (e.g., if `demote-headings` is 1, then all `h1` headings in the transcluded content will be demoted to `h2`, all `h2` will be demoted to `h3`, and so on). For `<wb-internal-link>`, the `target` attribute specifies the ID of the note to link to, and its body contains the link text. For `<wb-cite>`, the `target` attribute specifies the ID of the note to cite, and its body contains the citation text.
-
-Then, Weibian extracts information from the generated HTML, and use the Tera templating engine and user-supplied templates to produce the final HTML files for the notes. By default, Weibian looks for templates in `.wb/templates/`. 
-
-This rendering process begins by parsing the intermediate HTMLs to build a transclusion graph with respect to the `<wb-transclusion>` elements. Then, the notes are processed in topological order. For each note, the aforementioned custom elements are replaced with the actual content they represent.
-
-First, the transclusion and linking relationships are analyzed to build a transclusion graph. Each note is represented as a node in the graph, and a directed edge from node A to node B exists if note A transcludes note B. If there are cycles in the transclusion graph, Weibian will report an error and abort the rendering process, as cyclic transclusions are not supported.
-
-Then, transclusions are processed. For `<wb-transclusion>`, it is rendered via the `transclusion.html` template, which is provided with a a `transclusion` context (`transclusion.target`, `transclusion.show_metadata`, `transclusion.expanded`, `transclusion.hide_numbering`, `transclusion.demote_headings`, `transclusion.metadata`, `transclusion.content`). The `transclusion.target`, `transclusion.show_metadata`, `transclusion.expanded`, `transclusion.hide_numbering`, and `transclusion.demote_headings` are extracted from the corresponding attributes of the `<wb-transclusion>` element, while `transclusion.metadata` is the metadata of the target note, extracted from the `<meta>` tags in the `<head>` of the intermediate HTML of the target note, and `transclusion.content` is the processed content of the target note's final HTML file, to help simplify transclusion rendering in templates. Two Tera filters are registered to help transclusion rendering: `wb_hide_numbering` and `wb_demote_headings`. They apply unconditionally; template conditionals decide whether to invoke them (see the default `transclusion.html`). The result of rendering this template replaces the corresponding `<wb-transclusion>` element in the final HTML file. By processing the notes in topological order, the target note should have already been processed when processing the current note. After this step, there should be only `<wb-internal-link>` and `<wb-cite>` elements left in the HTML file.
-
-For `<wb-internal-link>`, it is rendered via the `internal_link.html` template, which is provided with a `link` context (`link.target`, `link.text`, `link.href`). The `link.target` and `link.text` are extracted from the corresponding attribute and body of the `<wb-internal-link>` element, while `link.href` is the generated URL to the target note's final HTML file, to help simplify link generation in templates. When the body of the `<wb-internal-link>` element is empty, the title of the target note is used as the link text. The result of rendering this template replaces the corresponding `<wb-internal-link>` element in the final HTML file. The rendering process for `<wb-cite>` is similar, except that it uses the `citation.html` template and a `citation` context (`citation.target`, `citation.text`, `citation.href`).
-
-Then, backmatters are generated for each note. As for now, Weibian supports four types of backmatter sections: contexts, references, backlinks, and related notes.
-- A context for note A is defined as any note that directly transcludes note A.
-- A reference from note A to note B exists if note A links to note B via an citation link.
-- A backlink from note A to note B exists if note B links to note A via an internal link.
-- A related note to note A to note B exists if note A links to note B via an internal link.
-The content of each backmatter section is generated by rendering transclusions of all notes relevant to that backmatter section with `show-metadata="true"`, `expanded="false"`, `disable-numbering="true"`, and `demote-headings="<number>"` options. Then, for each backmatter section, a Tera context is created with `title` being the name of the backmatter section (e.g., "Backlinks", "Contexts") and `content` being the HTML of the rendered transclusion described above. These contexts are packed into an array and passed to the `note.html` template as `note.backmatter_sections` for rendering, see the next paragraph.
-
-Finally, the final HTML file for each note will be constructed. The template for that is `note.html`. It receives a `note` context (`note.id`, `note.title`, `note.metadata`, `note.head`, `note.content`, `note.toc`, `note.backmatter`). `note.id` and `note.title` are extracted from the corresponding `<meta>` tags, provided for convenience.  The `note.metadata` is a map of metadata key-value pairs extracted from `<meta>` tags with `name` and `content` attributes in the `<head>` section of the intermediate HTML. The `note.head` is the raw HTML content of the `<head>` section of the intermediate HTML. `note.content` is the processed content of the `<body>` section of the intermediate HTML, with all transclusions and internal links resolved as described above. `note.backmatter_sections` is an array of backmatter section contexts as described in the previous paragraph. The `toc` field is an array of `Heading` objects, where each `Heading` object has the following structure:
-
-```
-// The hX level
-level: 1 | 2 | 3 | 4 | 5 | 6;
-// The `id` attribute of the heading tag
-id: String;
-// The inner HTML of the heading tag
-content: String;
-// Whether the heading has the "disable-numbering" class
-disable_numbering: Bool;
-// All lower level headers below this header
-children: Array<Heading>;
+```typ
+#include "/@@0008--writing-in-weibian.typ"
+#include "/blog/@@0001--typst-finds-a-sweet-spot-for-taking-scientific-notes.typ"
 ```
 
-Along all the rendering process, a `site` context (`site.root_dir`, `site.trailing_slash`, `site.domain`) is also provided to all templates to help with link generation and other site-wide settings.
+Weibian also scans `public_dir` for regular files and emits bundle assets. `public_dir` must be inside `input_dir`; when it is relative, it is resolved under `input_dir`, so `public_dir = "public"` means `typ/public` for the default project layout.
 
-When the document has `export-pdf` metadata set to true, an additional PDF export will be generated for the note. The PDF is simply generated by running the Typst compiler on the original Typst file, with an extra `wb-id-filename-map-file` input set to the root-absolute path of a JSON file that maps note IDs to their corresponding source Typst file root-absolute paths, to help resolving internal links and transclusions in the PDF export. The PDF file is saved with the name `<identifier>.pdf` in the `pdf/` subdirectory of the output directory. The PDF export is independent from the HTML export; it does not use the intermediate HTML nor the Tera templates, and it is triggered solely by the presence of the `export-pdf` metadata field in the original Typst file, which is processed in the default template to add a corresponding `<meta name="export-pdf" content="true">` tag in the intermediate HTML. For a starter template for both HTML and PDF export, see the #link("https://github.com/hanwenguo/weibian/tree/main/typ")[source of this very site].
+```typ
+#asset("css/weibian.css", read("/public/css/weibian.css", encoding: none))
+```
+
+The generated entrypoint is not written to disk. Conceptually, Weibian runs:
+
+```bash
+typst compile --features=bundle,html --format=bundle --root=typ - dist
+```
+
+The templates loaded by the included files are responsible for constructing `document(...)` values for HTML pages and PDFs. In the default templates, each note calls `#show: template(...)`; the template wraps the note body in a bundle document, records note metadata through Typst labels/metadata, and uses Typst context and introspection to render transclusions, backlinks, contexts, references, related links, and the table of contents.
+
+The linking helpers such as `ln`, `ct`, and `tr` are ordinary Typst functions supplied by the template. This means Weibian no longer emits or consumes custom HTML elements, no longer parses intermediate HTML, and no longer renders Tera templates.
 ]
 
 #inline-tree(
   identifier: "using-configuration-file",
   title: "Using Configuration File"
 )[
-Weibian supports a `.weibian/config.toml` configuration file to allow users to set project options such as input/output directories, public assets directory, and other preferences. CLI flags override config values.
+Weibian supports a `.wb/config.toml` configuration file to set project options such as input/output directories, the public assets directory, include/exclude globs, and site options. CLI flags override config values.
 
 The following is an example configuration file:
 
@@ -72,19 +53,26 @@ The following is an example configuration file:
 input_dir = "typ"
 output_dir = "dist"
 public_dir = "public"
-# include = ["**/*.typ"]  # optional; defaults to all files in input_dir
-# exclude = ["draft-*"]   # optional; exclude has priority over include
-# the above is the equivalent of the corresponding CLI flags
+include = ["**/*.typ"]
+exclude = ["index.typ", "_template/*.typ"]
 
 [site]
-domain = "example.com" # the domain of the site; used for generating absolute URLs
-root_dir = "/" # the root directory of the site; for example, if the site is hosted at example.com/notes/, set root_dir = "/notes/"
-trailing_slash = true # if true, the final URL of each note will have a trailing slash
+domain = "example.com"
+root_dir = "/"
+trailing_slash = true
 ```
 
-The configuration file is parsed at the start of the program, and values are used as defaults for the corresponding CLI flags. If `cache_dir` is omitted, Weibian uses a project-specific directory under the system temporary directory for intermediate HTML. By default, the configuration file is looked for in `.wb/config.toml` relative to the project root, but a different path can be specified with `--config-file <PATH>`. Site settings can also be overridden via CLI with `--site-domain`, `--site-root-dir`, and `--trailing-slash <BOOL>`. The settings in the `[site]` section are also passed to the Typst compiler as inputs, with the prefix `wb-` and underscores converted to hyphens (e.g., `site.domain` becomes `wb-domain`).
+If you keep a handwritten bundle entrypoint such as `typ/index.typ`, exclude it explicitly. Weibian respects filters exactly and will include `index.typ` if the filters allow it.
 
-The `trailing_slash` option will affect how internal links are generated and how the output files are organized. If `trailing_slash` is true, each note will be saved in a subdirectory named after its ID, with an `index.html` file inside (e.g., a note with ID `note-123` will be saved as `dist/note-123/index.html`). If false, each note will be saved directly as an HTML file named after its ID (e.g., `dist/note-123.html`). The `root_dir` setting only affects link generation; it does not change where files are written. Special case: a note with ID `index` is always saved as `dist/index.html` and links to the site root.
+The `[site]` settings are passed to the Typst compiler as `--input` values:
+
+- `wb-domain`
+- `wb-root-dir`
+- `wb-trailing-slash`
+
+The default templates use these inputs for link generation. The `root_dir` and `trailing_slash` values do not directly determine where Rust writes files; bundle output paths are chosen by the Typst `document(...)` elements created by the templates.
+
+`wb compile` also mirrors most Typst compile options, including `--input`, font and package paths, `--creation-timestamp`, `--pretty`, `--pages`, `--pdf-standard`, `--no-pdf-tags`, `--ppi`, `--deps`, `--deps-format`, `--jobs`, `--diagnostic-format`, `--open`, and `--timings`. Weibian owns the input path, output path, Typst root, output format, and required experimental features.
 ]
 
 #tr("wb:0009", expanded: false)

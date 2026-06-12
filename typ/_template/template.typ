@@ -1,9 +1,7 @@
 #import "/_template/site.typ"
 #import "/_template/lib.typ": (
-  _guard-and-render-metadata, _meta-item-html as _meta-item, domain, plain-text, root-dir, target,
+  _guard-and-render-metadata, _meta-item-html as _meta-item, domain, plain-text, root-dir, trailing-slash,
 )
-
-#let trailing-slash = true
 
 #let all-posts = state("all-posts", ())
 #let current-id-stack = state("current-id-stack", ())

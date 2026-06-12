@@ -8,7 +8,7 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::args::{CompileArgs, ProcessArgs, WorldArgs};
+use crate::args::{CompileArgs, TypstCompileArgs};
 use crate::error::StrResult;
 
 const DEFAULT_CONFIG_PATH: &str = ".wb/config.toml";
@@ -89,8 +89,7 @@ pub struct BuildConfig {
     pub public_directory: PathBuf,
     pub output_directory: PathBuf,
     pub site: SiteSettings,
-    pub world: WorldArgs,
-    pub process: ProcessArgs,
+    pub typst: TypstCompileArgs,
 }
 
 pub fn load_config(config_path: Option<&Path>) -> StrResult<WeibianConfig> {
@@ -117,11 +116,11 @@ impl BuildConfig {
         let input_directory =
             resolve_dir(args.input.as_ref(), config.files.input_dir.as_ref(), "typ");
         let input_filters = InputFilters::new(&config.files.include, &config.files.exclude)?;
-        let public_directory = resolve_dir(
+        let public_directory = resolve_public_dir(
+            &input_directory,
             args.public.as_ref(),
             config.files.public_dir.as_ref(),
-            "public",
-        );
+        )?;
         let output_directory = resolve_dir(
             args.output.as_ref(),
             config.files.output_dir.as_ref(),
@@ -153,8 +152,7 @@ impl BuildConfig {
                 root_dir,
                 trailing_slash,
             },
-            world: args.world.clone(),
-            process: args.process.clone(),
+            typst: args.typst.clone(),
         })
     }
 }
@@ -219,6 +217,46 @@ fn resolve_dir(cli: Option<&PathBuf>, config: Option<&PathBuf>, default: &str) -
         .unwrap_or_else(|| PathBuf::from(default))
 }
 
+fn resolve_public_dir(
+    input_directory: &Path,
+    cli: Option<&PathBuf>,
+    config: Option<&PathBuf>,
+) -> StrResult<PathBuf> {
+    let raw = cli
+        .cloned()
+        .or_else(|| config.cloned())
+        .unwrap_or_else(|| PathBuf::from("public"));
+    let public_directory = if raw.is_absolute() {
+        raw
+    } else {
+        input_directory.join(raw)
+    };
+
+    if public_directory.exists() {
+        let input = input_directory.canonicalize().map_err(|err| {
+            eco_format!(
+                "failed to canonicalize input directory {}: {err}",
+                input_directory.display()
+            )
+        })?;
+        let public = public_directory.canonicalize().map_err(|err| {
+            eco_format!(
+                "failed to canonicalize public directory {}: {err}",
+                public_directory.display()
+            )
+        })?;
+        if !public.starts_with(&input) {
+            return Err(eco_format!(
+                "public directory {} must be inside input directory {}",
+                public_directory.display(),
+                input_directory.display()
+            ));
+        }
+    }
+
+    Ok(public_directory)
+}
+
 fn normalize_root_dir(raw: Option<&str>) -> String {
     let mut root = raw.unwrap_or("/").trim().to_string();
     if root.is_empty() {
@@ -231,4 +269,90 @@ fn normalize_root_dir(raw: Option<&str>) -> String {
         root.push('/');
     }
     root
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use crate::args::{CompileArgs, SiteArgs, TypstCompileArgs};
+
+    use super::{BuildConfig, FilesConfig, WeibianConfig};
+
+    fn temp_project(name: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "weibian-config-{name}-{}-{stamp}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("failed to create temp project");
+        root
+    }
+
+    fn compile_args(input: Option<PathBuf>, public: Option<PathBuf>) -> CompileArgs {
+        CompileArgs {
+            input,
+            public,
+            output: None,
+            site: SiteArgs {
+                domain: None,
+                root_dir: None,
+                trailing_slash: None,
+            },
+            typst: TypstCompileArgs::default(),
+        }
+    }
+
+    #[test]
+    fn relative_public_dir_resolves_under_input_dir() {
+        let root = temp_project("relative-public");
+        let input = root.join("typ");
+        fs::create_dir_all(input.join("public")).expect("failed to create public dir");
+
+        let config = WeibianConfig {
+            files: FilesConfig {
+                input_dir: Some(input.clone()),
+                output_dir: Some(root.join("dist")),
+                public_dir: Some(Path::new("public").into()),
+                include: vec![],
+                exclude: vec![],
+            },
+            site: Default::default(),
+        };
+
+        let build = BuildConfig::from(&compile_args(None, None), &config)
+            .expect("build config should resolve");
+
+        assert_eq!(build.public_directory, input.join("public"));
+    }
+
+    #[test]
+    fn existing_public_dir_outside_input_dir_is_rejected() {
+        let root = temp_project("outside-public");
+        let input = root.join("typ");
+        let public = root.join("public");
+        fs::create_dir_all(&input).expect("failed to create input dir");
+        fs::create_dir_all(&public).expect("failed to create public dir");
+
+        let config = WeibianConfig {
+            files: FilesConfig {
+                input_dir: Some(input),
+                output_dir: Some(root.join("dist")),
+                public_dir: Some(public),
+                include: vec![],
+                exclude: vec![],
+            },
+            site: Default::default(),
+        };
+
+        let err = BuildConfig::from(&compile_args(None, None), &config)
+            .expect_err("outside public dir should fail");
+
+        assert!(err.contains("must be inside input directory"));
+    }
 }

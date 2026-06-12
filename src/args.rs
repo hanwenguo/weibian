@@ -1,8 +1,10 @@
 use std::fmt::{self, Display, Formatter};
+use std::num::NonZeroUsize;
+use std::ops::RangeInclusive;
 use std::path::PathBuf;
+use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
-use clap::builder::{BoolishValueParser, ValueParser};
+use clap::builder::{BoolishValueParser, TypedValueParser, ValueParser};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum, ValueHint};
 
 /// The character typically used to separate path components
@@ -62,25 +64,12 @@ pub struct GlobalArgs {
 #[derive(Debug, Clone, Subcommand)]
 #[command()]
 pub enum Command {
-    /// Compiles input file(s) to designated output format(s).
+    /// Compiles Typst notes to a bundle.
     #[command(visible_alias = "c")]
     Compile(CompileCommand),
-    // /// Watches an input file and recompiles on changes.
-    // #[command(visible_alias = "w")]
-    // Watch(WatchCommand),
-
-    // /// Opens a preview server.
-    // #[command(visible_alias = "s")]
-    // Serve(ServeCommand),
-    // /// Initializes a new project from a template.
-    // Init(InitCommand),
-
-    // /// Self update the Weibian CLI.
-    // #[cfg_attr(not(feature = "self-update"), clap(hide = true))]
-    // Update(UpdateCommand),
 }
 
-/// Compiles input file(s) to designated output format(s).
+/// Compiles Typst notes to a bundle.
 #[derive(Debug, Clone, Parser)]
 pub struct CompileCommand {
     /// Arguments for compilation.
@@ -88,108 +77,28 @@ pub struct CompileCommand {
     pub args: CompileArgs,
 }
 
-// Compiles an input file into a supported output format.
-// #[derive(Debug, Clone, Parser)]
-// pub struct WatchCommand {
-//     /// Arguments for compilation.
-//     #[clap(flatten)]
-//     pub args: CompileArgs,
-
-//     /// Arguments for the HTTP server.
-//     #[cfg(feature = "http-server")]
-//     #[clap(flatten)]
-//     pub server: ServerArgs,
-// }
-
-// Opens a preview server.
-// #[derive(Debug, Clone, Parser)]
-// pub struct ServeCommand {
-//     /// Arguments for the HTTP server.
-//     #[clap(flatten)]
-//     pub server: ServerArgs,
-// }
-
-// Initializes a new project from a template.
-// #[derive(Debug, Clone, Parser)]
-// pub struct InitCommand {
-//     /// The template to use, e.g. `@preview/charged-ieee`.
-//     ///
-//     /// You can specify the version by appending e.g. `:0.1.0`. If no version is
-//     /// specified, Typst will default to the latest version.
-//     ///
-//     /// Supports both local and published templates.
-//     pub template: String,
-
-//     /// The project directory, defaults to the template's name.
-//     pub dir: Option<String>,
-
-//     /// Arguments related to storage of packages in the system.
-//     #[clap(flatten)]
-//     pub package: PackageArgs,
-// }
-
-// /// Update the CLI using a pre-compiled binary from a Typst GitHub release.
-// #[derive(Debug, Clone, Parser)]
-// pub struct UpdateCommand {
-//     /// Which version to update to (defaults to latest).
-//     pub version: Option<Version>,
-
-//     /// Forces a downgrade to an older version (required for downgrading).
-//     #[clap(long, default_value_t = false)]
-//     pub force: bool,
-
-//     /// Reverts to the version from before the last update (only possible if
-//     /// `typst update` has previously ran).
-//     #[clap(
-//         long,
-//         default_value_t = false,
-//         conflicts_with = "version",
-//         conflicts_with = "force"
-//     )]
-//     pub revert: bool,
-
-//     /// Custom path to the backup file created on update and used by `--revert`,
-//     /// defaults to system-dependent location
-//     #[clap(long = "backup-path", env = "TYPST_UPDATE_BACKUP_PATH", value_name = "FILE")]
-//     pub backup_path: Option<PathBuf>,
-// }
-
-/// Arguments for compilation and watching.
+/// Arguments for compilation.
 #[derive(Debug, Clone, Args)]
 pub struct CompileArgs {
     /// Path to input directory (defaults to config or "typ").
     #[clap(value_hint = ValueHint::DirPath)]
     pub input: Option<PathBuf>,
 
-    /// Path to public assets directory (defaults to config or "public").
+    /// Path to output directory (defaults to config or "dist").
+    #[clap(value_hint = ValueHint::DirPath)]
+    pub output: Option<PathBuf>,
+
+    /// Path to public assets directory, relative to input dir by default.
     #[clap(long = "public-dir", value_hint = ValueHint::DirPath)]
     pub public: Option<PathBuf>,
-
-    /// Path to output directory (defaults to config or "dist").
-    #[clap(
-         value_hint = ValueHint::DirPath,
-     )]
-    pub output: Option<PathBuf>,
 
     /// Site configuration.
     #[clap(flatten)]
     pub site: SiteArgs,
 
-    // /// The format of the output file, inferred from the extension by default.
-    // #[arg(long = "format", short = 'f', default_value = "all")]
-    // pub format: OutputFormat,
-    /// World arguments.
+    /// Typst compile arguments that Weibian forwards.
     #[clap(flatten)]
-    pub world: WorldArgs,
-
-    /// One (or multiple comma-separated) PDF standards that Typst will enforce
-    /// conformance with.
-    #[arg(long = "pdf-standard", value_delimiter = ',')]
-    pub pdf_standard: Vec<PdfStandard>,
-
-    /// Processing arguments.
-    #[clap(flatten)]
-    pub process: ProcessArgs,
+    pub typst: TypstCompileArgs,
 }
 
 /// Site configuration overrides.
@@ -212,14 +121,9 @@ pub struct SiteArgs {
     pub trailing_slash: Option<bool>,
 }
 
-/// Arguments for the construction of a world. Shared by compile, watch, and
-/// query.
+/// Typst compile arguments that Weibian forwards transparently.
 #[derive(Debug, Clone, Args)]
-pub struct WorldArgs {
-    /// Configures the project root (for absolute paths).
-    #[clap(long = "root", env = "WEIBIAN_ROOT", value_name = "DIR", value_hint = ValueHint::DirPath)]
-    pub root: Option<PathBuf>,
-
+pub struct TypstCompileArgs {
     /// Add a string key-value pair visible through `sys.inputs`.
     #[clap(
         long = "input",
@@ -237,20 +141,93 @@ pub struct WorldArgs {
     #[clap(flatten)]
     pub package: PackageArgs,
 
-    /// The project's creation date formatted as a UNIX timestamp.
-    ///
-    /// For more information, see <https://reproducible-builds.org/specs/source-date-epoch/>.
+    /// The document's creation date formatted as a UNIX timestamp.
     #[clap(
         long = "creation-timestamp",
         env = "SOURCE_DATE_EPOCH",
         value_name = "UNIX_TIMESTAMP",
-        value_parser = parse_source_date_epoch,
+        value_parser = parse_creation_timestamp,
     )]
-    pub creation_timestamp: Option<DateTime<Utc>>,
+    pub creation_timestamp: Option<i64>,
+
+    /// Whether to pretty-print produced output.
+    #[arg(long = "pretty")]
+    pub pretty: bool,
+
+    /// Which pages to export. When unspecified, all pages are exported.
+    #[arg(long = "pages", value_delimiter = ',')]
+    pub pages: Option<Vec<Pages>>,
+
+    /// One (or multiple comma-separated) PDF standards that Typst will enforce
+    /// conformance with.
+    #[arg(long = "pdf-standard", value_delimiter = ',')]
+    pub pdf_standard: Vec<PdfStandard>,
+
+    /// Disables tagged PDF output.
+    #[arg(long = "no-pdf-tags")]
+    pub no_pdf_tags: bool,
+
+    /// The PPI (pixels per inch) to use for PNG export.
+    #[arg(long = "ppi", default_value_t = 144.0)]
+    pub ppi: f64,
+
+    /// File path to which a Makefile with the current compilation's
+    /// dependencies will be written.
+    #[clap(long = "make-deps", value_name = "PATH", hide = true)]
+    pub make_deps: Option<PathBuf>,
+
+    /// File path to which a list of current compilation's dependencies will
+    /// be written. Use `-` to write to stdout.
+    #[clap(
+        long,
+        value_name = "PATH",
+        value_parser = output_value_parser(),
+        value_hint = ValueHint::FilePath,
+    )]
+    pub deps: Option<CompileOutputPath>,
+
+    /// File format to use for dependencies.
+    #[clap(long, default_value_t)]
+    pub deps_format: DepsFormat,
+
+    /// Processing arguments.
+    #[clap(flatten)]
+    pub process: ProcessArgs,
+
+    /// Opens the output file with the default viewer or a specific program
+    /// after compilation.
+    #[arg(long = "open", value_name = "VIEWER")]
+    pub open: Option<Option<String>>,
+
+    /// Produces performance timings of the compilation process.
+    #[arg(long = "timings", value_name = "OUTPUT_JSON")]
+    pub timings: Option<PathBuf>,
 }
 
-/// Arguments for configuration the process of compilaton itself.
-#[derive(Debug, Clone, Args)]
+impl Default for TypstCompileArgs {
+    fn default() -> Self {
+        Self {
+            inputs: vec![],
+            font: FontArgs::default(),
+            package: PackageArgs::default(),
+            creation_timestamp: None,
+            pretty: false,
+            pages: None,
+            pdf_standard: vec![],
+            no_pdf_tags: false,
+            ppi: 144.0,
+            make_deps: None,
+            deps: None,
+            deps_format: DepsFormat::default(),
+            process: ProcessArgs::default(),
+            open: None,
+            timings: None,
+        }
+    }
+}
+
+/// Arguments for configuring the compilation process itself.
+#[derive(Debug, Default, Clone, Args)]
 pub struct ProcessArgs {
     /// Number of parallel jobs spawned during compilation. Defaults to number
     /// of CPUs. Setting it to 1 disables parallelism.
@@ -263,7 +240,7 @@ pub struct ProcessArgs {
 }
 
 /// Arguments related to where packages are stored in the system.
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Default, Clone, Args)]
 pub struct PackageArgs {
     /// Custom path to local packages, defaults to system-dependent location.
     #[clap(long = "package-path", env = "TYPST_PACKAGE_PATH", value_name = "DIR")]
@@ -279,7 +256,7 @@ pub struct PackageArgs {
 }
 
 /// Common arguments to customize available fonts.
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Default, Clone, Parser)]
 pub struct FontArgs {
     /// Adds additional directories that are recursively searched for fonts.
     ///
@@ -295,29 +272,29 @@ pub struct FontArgs {
 
     /// Ensures system fonts won't be searched, unless explicitly included via
     /// `--font-path`.
-    #[arg(long)]
+    #[arg(long, env = "TYPST_IGNORE_SYSTEM_FONTS")]
     pub ignore_system_fonts: bool,
+
+    /// Ensures fonts embedded into Typst won't be considered.
+    #[arg(long, env = "TYPST_IGNORE_EMBEDDED_FONTS")]
+    pub ignore_embedded_fonts: bool,
 }
 
-// Arguments for the HTTP server.
-// #[cfg(feature = "http-server")]
-// #[derive(Debug, Clone, Parser)]
-// pub struct ServerArgs {
-//     /// Disables the built-in HTTP server for HTML export.
-//     // #[clap(long)]
-//     // pub no_serve: bool,
+/// Output path for Typst flags that support stdout.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum CompileOutputPath {
+    Stdout,
+    Path(PathBuf),
+}
 
-//     /// Disables the injected live reload script for HTML export. The HTML that
-//     /// is written to disk isn't affected either way.
-//     // #[clap(long)]
-//     // pub no_reload: bool,
-
-//     /// The port where HTML is served.
-//     ///
-//     /// Defaults to the first free port in the range 3000-3005.
-//     #[clap(long)]
-//     pub port: Option<u16>,
-// }
+impl Display for CompileOutputPath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Stdout => f.pad("-"),
+            Self::Path(path) => path.display().fmt(f),
+        }
+    }
+}
 
 macro_rules! display_possible_values {
     ($ty:ty) => {
@@ -332,15 +309,19 @@ macro_rules! display_possible_values {
     };
 }
 
-/// Which format to use for the generated output file.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, ValueEnum)]
-pub enum OutputFormat {
-    Pdf,
-    Html,
-    All,
+/// File format to use for generated dependency files.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, ValueEnum)]
+pub enum DepsFormat {
+    /// Encodes as JSON, failing for non-Unicode paths.
+    #[default]
+    Json,
+    /// Separates paths with NULL bytes and can express all paths.
+    Zero,
+    /// Emits in Make format, omitting inexpressible paths.
+    Make,
 }
 
-display_possible_values!(OutputFormat);
+display_possible_values!(DepsFormat);
 
 /// Which format to use for diagnostics.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, ValueEnum)]
@@ -356,23 +337,110 @@ display_possible_values!(DiagnosticFormat);
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
 #[allow(non_camel_case_types)]
 pub enum PdfStandard {
+    /// PDF 1.4.
+    #[value(name = "1.4")]
+    V_1_4,
+    /// PDF 1.5.
+    #[value(name = "1.5")]
+    V_1_5,
+    /// PDF 1.6.
+    #[value(name = "1.6")]
+    V_1_6,
     /// PDF 1.7.
     #[value(name = "1.7")]
     V_1_7,
+    /// PDF 2.0.
+    #[value(name = "2.0")]
+    V_2_0,
+    /// PDF/A-1b.
+    #[value(name = "a-1b")]
+    A_1b,
+    /// PDF/A-1a.
+    #[value(name = "a-1a")]
+    A_1a,
     /// PDF/A-2b.
     #[value(name = "a-2b")]
     A_2b,
+    /// PDF/A-2u.
+    #[value(name = "a-2u")]
+    A_2u,
+    /// PDF/A-2a.
+    #[value(name = "a-2a")]
+    A_2a,
     /// PDF/A-3b.
     #[value(name = "a-3b")]
     A_3b,
+    /// PDF/A-3u.
+    #[value(name = "a-3u")]
+    A_3u,
+    /// PDF/A-3a.
+    #[value(name = "a-3a")]
+    A_3a,
+    /// PDF/A-4.
+    #[value(name = "a-4")]
+    A_4,
+    /// PDF/A-4f.
+    #[value(name = "a-4f")]
+    A_4f,
+    /// PDF/A-4e.
+    #[value(name = "a-4e")]
+    A_4e,
+    /// PDF/UA-1.
+    #[value(name = "ua-1")]
+    UA_1,
 }
 
 display_possible_values!(PdfStandard);
 
+/// A page range forwarded to Typst.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Pages(pub RangeInclusive<Option<NonZeroUsize>>);
+
+impl Display for Pages {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match (self.0.start(), self.0.end()) {
+            (Some(start), Some(end)) if start == end => write!(f, "{start}"),
+            (Some(start), Some(end)) => write!(f, "{start}-{end}"),
+            (Some(start), None) => write!(f, "{start}-"),
+            (None, Some(end)) => write!(f, "-{end}"),
+            (None, None) => f.write_str("-"),
+        }
+    }
+}
+
+impl FromStr for Pages {
+    type Err = &'static str;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value
+            .split('-')
+            .map(str::trim)
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [] | [""] => Err("page export range must not be empty"),
+            [single_page] => {
+                let page_number = parse_page_number(single_page)?;
+                Ok(Self(Some(page_number)..=Some(page_number)))
+            }
+            ["", ""] => Err("page export range must have start or end"),
+            [start, ""] => Ok(Self(Some(parse_page_number(start)?)..=None)),
+            ["", end] => Ok(Self(None..=Some(parse_page_number(end)?))),
+            [start, end] => {
+                let start = parse_page_number(start)?;
+                let end = parse_page_number(end)?;
+                if start > end {
+                    Err("page export range must end at a page after the start")
+                } else {
+                    Ok(Self(Some(start)..=Some(end)))
+                }
+            }
+            [_, _, _, ..] => Err("page export range must have a single hyphen"),
+        }
+    }
+}
+
 /// Parses key/value pairs split by the first equal sign.
-///
-/// This function will return an error if the argument contains no equals sign
-/// or contains the key (before the equals sign) is empty.
 fn parse_sys_input_pair(raw: &str) -> Result<(String, String), String> {
     let (key, val) = raw
         .split_once('=')
@@ -385,10 +453,27 @@ fn parse_sys_input_pair(raw: &str) -> Result<(String, String), String> {
     Ok((key, val))
 }
 
-/// Parses a UNIX timestamp according to <https://reproducible-builds.org/specs/source-date-epoch/>
-fn parse_source_date_epoch(raw: &str) -> Result<DateTime<Utc>, String> {
-    let timestamp: i64 = raw
-        .parse()
-        .map_err(|err| format!("timestamp must be decimal integer ({err})"))?;
-    DateTime::from_timestamp(timestamp, 0).ok_or_else(|| "timestamp out of range".to_string())
+fn parse_creation_timestamp(raw: &str) -> Result<i64, String> {
+    raw.parse()
+        .map_err(|err| format!("timestamp must be decimal integer ({err})"))
+}
+
+fn parse_page_number(value: &str) -> Result<NonZeroUsize, &'static str> {
+    if value == "0" {
+        Err("page numbers start at one")
+    } else {
+        NonZeroUsize::from_str(value).map_err(|_| "not a valid page number")
+    }
+}
+
+fn output_value_parser() -> impl TypedValueParser<Value = CompileOutputPath> {
+    clap::builder::OsStringValueParser::new().try_map(|value| {
+        if value.is_empty() {
+            Err(clap::Error::new(clap::error::ErrorKind::InvalidValue))
+        } else if value == "-" {
+            Ok(CompileOutputPath::Stdout)
+        } else {
+            Ok(CompileOutputPath::Path(value.into()))
+        }
+    })
 }
