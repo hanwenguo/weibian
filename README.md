@@ -64,11 +64,18 @@ By default, `wb compile` uses the embedded Typst-as-a-library compiler. To use a
 wb compile --compiler host
 ```
 
+If the host compiler is not named `typst` or is not on `PATH`, pass its path:
+
+```bash
+wb compile --compiler host --host-compiler /path/to/typst
+```
+
 You can also set the backend in `weibian.toml`:
 
 ```toml
 [compiler]
 backend = "library" # or "host"
+path = "/path/to/typst" # optional, used by the host backend
 ```
 
 The Cargo features `library-compiler` and `host-compiler` are both enabled by

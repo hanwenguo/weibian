@@ -313,6 +313,7 @@ mod tests {
             public_directory: root.join("typ/public"),
             output_directory: root.join("dist"),
             compiler_backend: CompilerBackendKind::Library,
+            host_compiler: std::path::PathBuf::from("typst"),
             site: SiteSettings {
                 domain: None,
                 root_dir: "/".into(),
@@ -331,6 +332,7 @@ mod tests {
                 output: None,
                 public: None,
                 compiler: Some(CompilerBackendKind::Host),
+                host_compiler: None,
                 site: SiteArgs {
                     domain: None,
                     root_dir: None,
@@ -356,6 +358,7 @@ mod tests {
                 output: None,
                 public: None,
                 compiler: Some(CompilerBackendKind::Host),
+                host_compiler: None,
                 site: SiteArgs {
                     domain: None,
                     root_dir: None,

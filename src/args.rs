@@ -129,6 +129,10 @@ pub struct CompileArgs {
     #[arg(long = "compiler", value_enum)]
     pub compiler: Option<CompilerBackendKind>,
 
+    /// Path to the host Typst compiler executable.
+    #[arg(long = "host-compiler", value_name = "PATH", value_hint = ValueHint::FilePath)]
+    pub host_compiler: Option<PathBuf>,
+
     /// Site configuration.
     #[clap(flatten)]
     pub site: SiteArgs,
@@ -562,6 +566,8 @@ mod tests {
             "dist",
             "--compiler",
             "library",
+            "--host-compiler",
+            "/opt/typst/bin/typst",
             "--no-serve",
             "--no-reload",
             "--port",
@@ -575,6 +581,10 @@ mod tests {
         assert_eq!(command.args.input, Some(PathBuf::from("typ")));
         assert_eq!(command.args.output, Some(PathBuf::from("dist")));
         assert_eq!(command.args.compiler, Some(CompilerBackendKind::Library));
+        assert_eq!(
+            command.args.host_compiler,
+            Some(PathBuf::from("/opt/typst/bin/typst"))
+        );
         assert!(command.server.no_serve);
         assert!(command.server.no_reload);
         assert_eq!(command.server.port, Some(4000));

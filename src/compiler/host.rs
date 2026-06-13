@@ -21,13 +21,19 @@ impl CompilerBackend for HostCompiler {
 fn compile_bundle(build_config: &BuildConfig, entrypoint: &str) -> StrResult<()> {
     let features = std::env::var("TYPST_FEATURES").ok();
     let args = build_typst_args(build_config, features.as_deref());
-    let mut child = Command::new("typst")
+    let compiler = host_compiler_path(build_config);
+    let mut child = Command::new(compiler)
         .args(&args)
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|err| eco_format!("failed to run typst: {err}"))?;
+        .map_err(|err| {
+            eco_format!(
+                "failed to run Typst host compiler {}: {err}",
+                compiler.display()
+            )
+        })?;
 
     if let Some(mut stdin) = child.stdin.take() {
         match stdin.write_all(entrypoint.as_bytes()) {
@@ -49,6 +55,10 @@ fn compile_bundle(build_config: &BuildConfig, entrypoint: &str) -> StrResult<()>
     }
 
     Ok(())
+}
+
+pub fn host_compiler_path(build_config: &BuildConfig) -> &Path {
+    &build_config.host_compiler
 }
 
 pub fn build_typst_args(build_config: &BuildConfig, env_features: Option<&str>) -> Vec<OsString> {
@@ -190,7 +200,7 @@ fn output_path_arg(output: &CompileOutputPath) -> OsString {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use crate::args::{
         CompileOutputPath, CompilerBackendKind, DepsFormat, DiagnosticFormat, FontArgs,
@@ -198,7 +208,7 @@ mod tests {
     };
     use crate::config::{BuildConfig, InputFilters, SiteSettings};
 
-    use super::build_typst_args;
+    use super::{build_typst_args, host_compiler_path};
 
     #[test]
     fn build_typst_args_forces_bundle_controls_and_forwards_user_options() {
@@ -208,6 +218,7 @@ mod tests {
             public_directory: PathBuf::from("typ/public"),
             output_directory: PathBuf::from("dist"),
             compiler_backend: CompilerBackendKind::Library,
+            host_compiler: PathBuf::from("/custom/typst"),
             site: SiteSettings {
                 domain: Some("https://example.com".into()),
                 root_dir: "/notes/".into(),
@@ -297,6 +308,29 @@ mod tests {
                 "-",
                 "dist",
             ]
+        );
+    }
+
+    #[test]
+    fn host_compiler_path_uses_build_config_path() {
+        let build_config = BuildConfig {
+            input_directory: PathBuf::from("typ"),
+            input_filters: InputFilters::new(&[], &[]).expect("filters should build"),
+            public_directory: PathBuf::from("typ/public"),
+            output_directory: PathBuf::from("dist"),
+            compiler_backend: CompilerBackendKind::Host,
+            host_compiler: PathBuf::from("/custom/typst"),
+            site: SiteSettings {
+                domain: None,
+                root_dir: "/".into(),
+                trailing_slash: false,
+            },
+            typst: TypstCompileArgs::default(),
+        };
+
+        assert_eq!(
+            host_compiler_path(&build_config),
+            Path::new("/custom/typst")
         );
     }
 }

@@ -46,6 +46,7 @@ pub struct SiteConfig {
 #[derive(Debug, Default, Deserialize)]
 pub struct CompilerConfig {
     pub backend: Option<CompilerBackendKind>,
+    pub path: Option<PathBuf>,
 }
 #[derive(Debug, Clone)]
 pub struct SiteSettings {
@@ -97,6 +98,7 @@ pub struct BuildConfig {
     pub public_directory: PathBuf,
     pub output_directory: PathBuf,
     pub compiler_backend: CompilerBackendKind,
+    pub host_compiler: PathBuf,
     pub site: SiteSettings,
     pub typst: TypstCompileArgs,
 }
@@ -155,12 +157,18 @@ impl BuildConfig {
             .compiler
             .or(config.compiler.backend)
             .unwrap_or_else(CompilerBackendKind::compiled_default);
+        let host_compiler = args
+            .host_compiler
+            .clone()
+            .or_else(|| config.compiler.path.clone())
+            .unwrap_or_else(|| PathBuf::from("typst"));
         Ok(Self {
             input_directory,
             input_filters,
             public_directory,
             output_directory,
             compiler_backend,
+            host_compiler,
             site: SiteSettings {
                 domain,
                 root_dir,
@@ -330,6 +338,7 @@ mod tests {
             public,
             output: None,
             compiler: None,
+            host_compiler: None,
             site: SiteArgs {
                 domain: None,
                 root_dir: None,
@@ -428,6 +437,7 @@ mod tests {
             },
             compiler: super::CompilerConfig {
                 backend: Some(CompilerBackendKind::Library),
+                path: None,
             },
             site: Default::default(),
         };
@@ -453,6 +463,7 @@ mod tests {
             },
             compiler: super::CompilerConfig {
                 backend: Some(CompilerBackendKind::Host),
+                path: None,
             },
             site: Default::default(),
         };
@@ -488,5 +499,34 @@ mod tests {
             build.compiler_backend,
             CompilerBackendKind::compiled_default()
         );
+    }
+
+    #[test]
+    fn cli_host_compiler_path_overrides_config_path() {
+        let root = temp_project("compiler-path");
+        let input = root.join("typ");
+        fs::create_dir_all(input.join("public")).expect("failed to create public dir");
+
+        let mut args = compile_args(None, None);
+        args.host_compiler = Some(PathBuf::from("/cli/typst"));
+
+        let config = WeibianConfig {
+            files: FilesConfig {
+                input_dir: Some(input),
+                output_dir: Some(root.join("dist")),
+                public_dir: None,
+                include: vec![],
+                exclude: vec![],
+            },
+            compiler: super::CompilerConfig {
+                backend: Some(CompilerBackendKind::Host),
+                path: Some(PathBuf::from("/config/typst")),
+            },
+            site: Default::default(),
+        };
+
+        let build = BuildConfig::from(&args, &config).expect("build config should resolve");
+
+        assert_eq!(build.host_compiler, PathBuf::from("/cli/typst"));
     }
 }

@@ -881,6 +881,7 @@ mod tests {
             public_directory: public.clone(),
             output_directory: output.clone(),
             compiler_backend: CompilerBackendKind::Library,
+            host_compiler: PathBuf::from("typst"),
             site: SiteSettings {
                 domain: None,
                 root_dir: "/".into(),
@@ -920,6 +921,7 @@ mod tests {
             public_directory: public.clone(),
             output_directory: output.clone(),
             compiler_backend: CompilerBackendKind::Library,
+            host_compiler: PathBuf::from("typst"),
             site: SiteSettings {
                 domain: None,
                 root_dir: "/".into(),
