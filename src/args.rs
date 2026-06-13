@@ -68,6 +68,10 @@ pub enum Command {
     /// Compiles Typst notes to a bundle.
     #[command(visible_alias = "c")]
     Compile(CompileCommand),
+
+    /// Watches Typst notes and recompiles on changes.
+    #[command(visible_alias = "w")]
+    Watch(WatchCommand),
 }
 
 /// Compiles Typst notes to a bundle.
@@ -76,6 +80,34 @@ pub struct CompileCommand {
     /// Arguments for compilation.
     #[clap(flatten)]
     pub args: CompileArgs,
+}
+
+/// Watches Typst notes and recompiles on changes.
+#[derive(Debug, Clone, Parser)]
+pub struct WatchCommand {
+    /// Arguments for compilation.
+    #[clap(flatten)]
+    pub args: CompileArgs,
+
+    /// Arguments for the live-reload HTTP server.
+    #[clap(flatten)]
+    pub server: ServerArgs,
+}
+
+/// Arguments for the live-reload HTTP server.
+#[derive(Debug, Default, Clone, Parser)]
+pub struct ServerArgs {
+    /// Disables the built-in HTTP server for bundle export.
+    #[clap(long)]
+    pub no_serve: bool,
+
+    /// Disables the injected live reload script for HTML output.
+    #[clap(long)]
+    pub no_reload: bool,
+
+    /// The port where HTML is served.
+    #[clap(long)]
+    pub port: Option<u16>,
 }
 
 /// Arguments for compilation.
@@ -511,4 +543,40 @@ fn output_value_parser() -> impl TypedValueParser<Value = CompileOutputPath> {
             Ok(CompileOutputPath::Path(value.into()))
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use clap::Parser;
+
+    use super::{CliArguments, Command, CompilerBackendKind};
+
+    #[test]
+    fn watch_command_parses_compile_and_server_options() {
+        let cli = CliArguments::parse_from([
+            "wb",
+            "watch",
+            "typ",
+            "dist",
+            "--compiler",
+            "library",
+            "--no-serve",
+            "--no-reload",
+            "--port",
+            "4000",
+        ]);
+
+        let Command::Watch(command) = cli.command else {
+            panic!("watch command should parse");
+        };
+
+        assert_eq!(command.args.input, Some(PathBuf::from("typ")));
+        assert_eq!(command.args.output, Some(PathBuf::from("dist")));
+        assert_eq!(command.args.compiler, Some(CompilerBackendKind::Library));
+        assert!(command.server.no_serve);
+        assert!(command.server.no_reload);
+        assert_eq!(command.server.port, Some(4000));
+    }
 }

@@ -76,6 +76,33 @@ default. Build with `--no-default-features --features host-compiler` for a
 host-only binary, or with `--no-default-features --features library-compiler`
 for an embedded-only binary.
 
+## Watch mode
+
+Use `wb watch` or `wb w` while editing notes:
+
+```bash
+wb watch
+```
+
+Watch mode uses the same input, output, public directory, site, compiler, and
+Typst compile flags as `wb compile`. It is currently implemented only for the
+embedded library compiler. Running `wb watch --compiler host` exits with a clear
+unsupported-backend error.
+
+By default, watch mode writes the Typst bundle to `dist/`, starts a local
+live-reload HTTP server, and reloads connected browsers after successful bundle
+updates. Server flags mirror Typst watch:
+
+```bash
+wb watch --no-serve
+wb watch --no-reload
+wb watch --port 4000
+```
+
+A binary built without the `library-compiler` Cargo feature still parses
+`wb watch`, but exits with an error explaining that watch mode requires the
+library compiler.
+
 ## Features
 
 - Utilizes Typst bundle export: just use your Typst templates/styles
@@ -88,7 +115,6 @@ for an embedded-only binary.
 
 ## Planned
 
-- Watch mode
 - Datalog-based querying of notes
 - Generalized backmatter
 

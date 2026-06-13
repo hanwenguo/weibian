@@ -10,6 +10,7 @@ path = "src/main.rs"
 [features]
 default = ["library-compiler", "host-compiler"]
 library-compiler = [
+    "dep:comemo",
     "dep:chrono",
     "dep:open",
     "dep:pathdiff",
@@ -32,6 +33,7 @@ host-compiler = []
 clap = { version = "4.5.40", features = ["derive", "env"] }
 codespan-reporting = "0.13.1"
 color-print = "0.3.7"
+comemo = { version = "0.5.1", optional = true }
 ecow = "0.2.5"
 globset = "0.4.16"
 figment = { version = "0.10.8", features = ["toml"] }
@@ -45,7 +47,7 @@ serde_json = { version = "1", optional = true }
 typst = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", optional = true }
 typst-bundle = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", optional = true }
 typst-html = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", optional = true }
-typst-kit = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", default-features = false, features = ["bundle", "embedded-fonts", "scan-fonts", "system-packages", "universe-packages", "datetime", "emit-diagnostics", "system-downloader", "timer"], optional = true }
+typst-kit = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", default-features = false, features = ["bundle", "embedded-fonts", "scan-fonts", "system-packages", "universe-packages", "datetime", "emit-diagnostics", "system-downloader", "timer", "watcher", "http-server"], optional = true }
 typst-layout = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", optional = true }
 typst-pdf = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", optional = true }
 typst-render = { git = "https://github.com/typst/typst", rev = "ecb50e9f139d7088aef491a1f769ba5e41ce2279", optional = true }

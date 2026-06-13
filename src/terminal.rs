@@ -20,7 +20,16 @@ pub struct TermOut {
 }
 
 impl TermOut {
-    // Additional terminal helpers can be added here when needed.
+    /// Clears the entire screen when output supports terminal control.
+    #[cfg(feature = "library-compiler")]
+    pub fn clear_screen(&mut self) -> io::Result<()> {
+        if self.stream.supports_color() {
+            let mut stream = self.stream.lock();
+            write!(stream, "\x1B[2J\x1B[1;1H")?;
+            stream.flush()?;
+        }
+        Ok(())
+    }
 }
 
 impl Write for TermOut {

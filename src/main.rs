@@ -5,6 +5,7 @@ mod compiler;
 mod config;
 mod error;
 mod terminal;
+mod watch;
 
 use std::{cell::Cell, io, io::Write, process::ExitCode, sync::LazyLock};
 
@@ -48,6 +49,7 @@ fn dispatch() -> StrResult<()> {
 
     match &ARGS.command {
         Command::Compile(command) => crate::compile::compile(command, &config)?,
+        Command::Watch(command) => crate::watch::watch(command, &config)?,
     }
 
     Ok(())

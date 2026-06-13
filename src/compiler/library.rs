@@ -1,10 +1,11 @@
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
-use ecow::eco_format;
+use ecow::{EcoVec, eco_format};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::Serialize;
 use typst::diag::{FileError, FileResult, SourceDiagnostic, SourceResult, Warned};
@@ -22,6 +23,7 @@ use typst_kit::downloader::SystemDownloader;
 use typst_kit::files::{FileLoader, FileStore, FsRoot};
 use typst_kit::fonts::FontStore;
 use typst_kit::packages::{FsPackages, SystemPackages, UniversePackages};
+use typst_kit::server::HttpServer;
 use typst_kit::timer::Timer;
 use typst_pdf::{PdfOptions, PdfStandards, Timestamp};
 use typst_render::RenderOptions;
@@ -44,13 +46,64 @@ impl CompilerBackend for LibraryCompiler {
 }
 
 fn compile_bundle(build_config: &BuildConfig, entrypoint: &str) -> StrResult<()> {
-    let mut config = LibraryCompileConfig::new(build_config)?;
-    let mut world = LibraryWorld::new(build_config, entrypoint)?;
-    let mut timer = Timer::new_or_placeholder(build_config.typst.timings.clone());
+    let mut session = LibraryCompileSession::new(build_config, entrypoint)?;
+    session.compile_once().map(|_| ())
+}
 
-    timer
-        .record(&mut world, |world| compile_once(world, &mut config))
-        .map_err(|err| eco_format!("{err}"))?
+pub struct CompileOutcome {
+    pub had_warnings: bool,
+}
+
+pub struct LibraryCompileSession {
+    config: LibraryCompileConfig,
+    world: LibraryWorld,
+    timer: Timer,
+}
+
+impl LibraryCompileSession {
+    pub fn new(build_config: &BuildConfig, entrypoint: &str) -> StrResult<Self> {
+        Self::new_impl(build_config, entrypoint, None)
+    }
+
+    pub fn new_with_server(
+        build_config: &BuildConfig,
+        entrypoint: &str,
+        server: Option<HttpServer>,
+    ) -> StrResult<Self> {
+        Self::new_impl(build_config, entrypoint, server)
+    }
+
+    fn new_impl(
+        build_config: &BuildConfig,
+        entrypoint: &str,
+        server: Option<HttpServer>,
+    ) -> StrResult<Self> {
+        Ok(Self {
+            config: LibraryCompileConfig::new(build_config, server)?,
+            world: LibraryWorld::new(build_config, entrypoint)?,
+            timer: Timer::new_or_placeholder(build_config.typst.timings.clone()),
+        })
+    }
+
+    pub fn compile_once(&mut self) -> StrResult<CompileOutcome> {
+        self.timer
+            .record(&mut self.world, |world| {
+                compile_once(world, &mut self.config)
+            })
+            .map_err(|err| eco_format!("{err}"))?
+    }
+
+    pub fn reset(&mut self) {
+        self.world.reset();
+    }
+
+    pub fn replace_entrypoint(&mut self, entrypoint: &str) {
+        self.world.replace_entrypoint(entrypoint);
+    }
+
+    pub fn dependencies(&mut self) -> impl Iterator<Item = PathBuf> + '_ {
+        self.world.dependencies()
+    }
 }
 
 struct LibraryCompileConfig {
@@ -66,10 +119,11 @@ struct LibraryCompileConfig {
     deps_format: DepsFormat,
     ppi: f64,
     output_directory: PathBuf,
+    server: Option<HttpServer>,
 }
 
 impl LibraryCompileConfig {
-    fn new(build_config: &BuildConfig) -> StrResult<Self> {
+    fn new(build_config: &BuildConfig, server: Option<HttpServer>) -> StrResult<Self> {
         let typst = &build_config.typst;
         let pages = typst.pages.as_ref().map(|export_ranges| {
             PageRanges::new(export_ranges.iter().map(|range| range.0.clone()).collect())
@@ -140,6 +194,7 @@ impl LibraryCompileConfig {
             deps_format,
             ppi: typst.ppi,
             output_directory: build_config.output_directory.clone(),
+            server,
         })
     }
 }
@@ -177,14 +232,18 @@ fn validate_pdf_tags(
     Ok(())
 }
 
-fn compile_once(world: &mut LibraryWorld, config: &mut LibraryCompileConfig) -> StrResult<()> {
+fn compile_once(
+    world: &mut LibraryWorld,
+    config: &mut LibraryCompileConfig,
+) -> StrResult<CompileOutcome> {
     let Warned {
         output,
         mut warnings,
     } = typst::compile::<Bundle>(world);
     warnings.extend(config.warnings.iter().cloned());
 
-    let output = output.and_then(|bundle| export_bundle(&bundle, config));
+    let had_warnings = !warnings.is_empty();
+    let output = output.and_then(|bundle| export_bundle(bundle, config));
 
     match &output {
         Ok(_) => {
@@ -202,11 +261,11 @@ fn compile_once(world: &mut LibraryWorld, config: &mut LibraryCompileConfig) -> 
     }
 
     output
-        .map(|_| ())
+        .map(|_| CompileOutcome { had_warnings })
         .map_err(|_| eco_format!("typst compile failed"))
 }
 
-fn export_bundle(bundle: &Bundle, config: &LibraryCompileConfig) -> SourceResult<Vec<PathBuf>> {
+fn export_bundle(bundle: Bundle, config: &LibraryCompileConfig) -> SourceResult<Vec<PathBuf>> {
     let options = BundleOptions {
         html: HtmlOptions {
             pretty: config.pretty,
@@ -219,14 +278,19 @@ fn export_bundle(bundle: &Bundle, config: &LibraryCompileConfig) -> SourceResult
         },
     };
 
-    let fs = typst_bundle::export(bundle, &options)?;
-    write_virtual_fs(&config.output_directory, &fs).map_err(|err| {
-        vec![SourceDiagnostic::error(
+    let fs = typst_bundle::export(&bundle, &options)?;
+    let outputs = write_virtual_fs(&config.output_directory, &fs).map_err(|err| {
+        EcoVec::from(vec![SourceDiagnostic::error(
             Span::detached(),
             eco_format!("failed to write bundle ({err})"),
-        )]
-        .into()
-    })
+        )])
+    })?;
+
+    if let Some(server) = &config.server {
+        server.set_bundle(bundle, fs);
+    }
+
+    Ok(outputs)
 }
 
 fn write_virtual_fs(root: &Path, fs: &VirtualFs) -> StrResult<Vec<PathBuf>> {
@@ -363,6 +427,17 @@ impl LibraryWorld {
         let (loader, deps) = self.files.dependencies();
         deps.filter_map(|id| loader.resolve(id).ok())
     }
+
+    fn reset(&mut self) {
+        self.files.reset();
+        self.now.reset();
+    }
+
+    fn replace_entrypoint(&mut self, entrypoint: &str) {
+        self.files
+            .loader_mut()
+            .replace_entrypoint(entrypoint.as_bytes().to_vec());
+    }
 }
 
 impl World for LibraryWorld {
@@ -451,6 +526,10 @@ impl WeibianFiles {
             VirtualRoot::Package(spec) => self.packages.obtain(spec)?,
         })
     }
+
+    fn replace_entrypoint(&mut self, entrypoint: Vec<u8>) {
+        self.entrypoint = Bytes::new(entrypoint);
+    }
 }
 
 impl FileLoader for WeibianFiles {
@@ -532,17 +611,26 @@ fn open_output(config: &mut LibraryCompileConfig) -> StrResult<()> {
         return Ok(());
     };
 
+    if let Some(server) = &config.server {
+        let url = format!("http://{}", server.addr());
+        return open_path(OsStr::new(&url), viewer.as_deref());
+    }
+
     let path = config
         .output_directory
         .canonicalize()
         .map_err(|err| eco_format!("failed to canonicalize path ({err})"))?;
 
+    open_path(path.as_os_str(), viewer.as_deref())
+}
+
+fn open_path(path: &OsStr, viewer: Option<&str>) -> StrResult<()> {
     if let Some(viewer) = viewer {
-        open::with_detached(path.as_os_str(), &viewer)
+        open::with_detached(path, viewer)
             .map_err(|err| eco_format!("failed to open file with {viewer} ({err})"))
     } else {
-        open::that_detached(path.as_os_str()).map_err(|err| {
-            let openers = open::commands(path.as_os_str())
+        open::that_detached(path).map_err(|err| {
+            let openers = open::commands(path)
                 .iter()
                 .map(|command| command.get_program().to_string_lossy())
                 .collect::<Vec<_>>()
@@ -754,7 +842,7 @@ mod tests {
     use crate::bundle::{collect_asset_files, collect_typst_sources, render_entrypoint};
     use crate::config::{BuildConfig, InputFilters, SiteSettings};
 
-    use super::LibraryCompiler;
+    use super::{LibraryCompileSession, LibraryCompiler};
     use crate::compiler::CompilerBackend;
 
     fn temp_project(name: &str) -> PathBuf {
@@ -813,5 +901,47 @@ mod tests {
             fs::read_to_string(output.join("css/site.css")).expect("asset should be readable"),
             "body { color: black; }"
         );
+    }
+
+    #[test]
+    fn library_compile_session_reuses_world_and_recompiles_changed_sources() {
+        let root = temp_project("session");
+        let input = root.join("typ");
+        let public = input.join("public");
+        let output = root.join("dist");
+        let source = input.join("main.typ");
+        write(&source, "#document(\"index.html\")[One]");
+        fs::create_dir_all(&public).expect("failed to create public dir");
+
+        let filters = InputFilters::new(&["**/*.typ".into()], &[]).expect("filters should build");
+        let build_config = BuildConfig {
+            input_directory: input.clone(),
+            input_filters: filters,
+            public_directory: public.clone(),
+            output_directory: output.clone(),
+            compiler_backend: CompilerBackendKind::Library,
+            site: SiteSettings {
+                domain: None,
+                root_dir: "/".into(),
+                trailing_slash: false,
+            },
+            typst: TypstCompileArgs::default(),
+        };
+        let sources = collect_typst_sources(&input, &build_config.input_filters)
+            .expect("sources should collect");
+        let assets = collect_asset_files(&input, &public).expect("assets should collect");
+        let entrypoint = render_entrypoint(&sources, &assets);
+
+        let mut session = LibraryCompileSession::new(&build_config, &entrypoint)
+            .expect("session should initialize");
+        session.compile_once().expect("first compile should pass");
+
+        write(&source, "#document(\"index.html\")[Two]");
+        session.reset();
+        session.compile_once().expect("second compile should pass");
+
+        let html =
+            fs::read_to_string(output.join("index.html")).expect("HTML output should be readable");
+        assert!(html.contains("Two"));
     }
 }

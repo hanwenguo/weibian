@@ -5,9 +5,18 @@ use crate::bundle::{collect_asset_files, collect_typst_sources, render_entrypoin
 use crate::config::{BuildConfig, WeibianConfig};
 use crate::error::StrResult;
 
+pub struct PreparedCompile {
+    pub entrypoint: String,
+}
+
 pub fn compile(command: &CompileCommand, config: &WeibianConfig) -> StrResult<()> {
     let build_config = BuildConfig::from(&command.args, config)?;
+    let prepared = prepare_compile(&build_config)?;
 
+    crate::compiler::compile_bundle(&build_config, &prepared.entrypoint)
+}
+
+pub fn prepare_compile(build_config: &BuildConfig) -> StrResult<PreparedCompile> {
     let sources =
         collect_typst_sources(&build_config.input_directory, &build_config.input_filters)?;
     if sources.is_empty() {
@@ -29,5 +38,5 @@ pub fn compile(command: &CompileCommand, config: &WeibianConfig) -> StrResult<()
     )?;
     let entrypoint = render_entrypoint(&sources, &assets);
 
-    crate::compiler::compile_bundle(&build_config, &entrypoint)
+    Ok(PreparedCompile { entrypoint })
 }
