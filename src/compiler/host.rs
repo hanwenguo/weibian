@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-use std::env;
 use std::ffi::OsString;
 use std::io::{self, Write};
 use std::path::Path;
@@ -8,11 +6,20 @@ use std::process::{Command, Stdio};
 use ecow::eco_format;
 
 use crate::args::{CompileOutputPath, TypstCompileArgs};
+use crate::compiler::{CompilerBackend, forced_features, site_inputs};
 use crate::config::BuildConfig;
 use crate::error::StrResult;
 
-pub fn compile_bundle(build_config: &BuildConfig, entrypoint: &str) -> StrResult<()> {
-    let features = env::var("TYPST_FEATURES").ok();
+pub struct HostCompiler;
+
+impl CompilerBackend for HostCompiler {
+    fn compile_bundle(build_config: &BuildConfig, entrypoint: &str) -> StrResult<()> {
+        compile_bundle(build_config, entrypoint)
+    }
+}
+
+fn compile_bundle(build_config: &BuildConfig, entrypoint: &str) -> StrResult<()> {
+    let features = std::env::var("TYPST_FEATURES").ok();
     let args = build_typst_args(build_config, features.as_deref());
     let mut child = Command::new("typst")
         .args(&args)
@@ -181,54 +188,13 @@ fn output_path_arg(output: &CompileOutputPath) -> OsString {
     }
 }
 
-fn forced_features(env_features: Option<&str>) -> String {
-    let mut features = BTreeSet::new();
-    if let Some(env_features) = env_features {
-        for feature in env_features.split(',') {
-            let feature = feature.trim();
-            if !feature.is_empty() {
-                features.insert(feature.to_string());
-            }
-        }
-    }
-    features.insert("bundle".to_string());
-    features.insert("html".to_string());
-    features.into_iter().collect::<Vec<_>>().join(",")
-}
-
-fn site_inputs(build_config: &BuildConfig) -> Vec<(String, String)> {
-    vec![
-        (
-            "wb-domain".to_string(),
-            build_config
-                .site
-                .domain
-                .as_deref()
-                .unwrap_or("")
-                .to_string(),
-        ),
-        (
-            "wb-root-dir".to_string(),
-            build_config.site.root_dir.clone(),
-        ),
-        (
-            "wb-trailing-slash".to_string(),
-            if build_config.site.trailing_slash {
-                "true".to_string()
-            } else {
-                "false".to_string()
-            },
-        ),
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
     use crate::args::{
-        CompileOutputPath, DepsFormat, DiagnosticFormat, FontArgs, PackageArgs, ProcessArgs,
-        TypstCompileArgs,
+        CompileOutputPath, CompilerBackendKind, DepsFormat, DiagnosticFormat, FontArgs,
+        PackageArgs, ProcessArgs, TypstCompileArgs,
     };
     use crate::config::{BuildConfig, InputFilters, SiteSettings};
 
@@ -241,6 +207,7 @@ mod tests {
             input_filters: InputFilters::new(&[], &[]).expect("filters should build"),
             public_directory: PathBuf::from("typ/public"),
             output_directory: PathBuf::from("dist"),
+            compiler_backend: CompilerBackendKind::Library,
             site: SiteSettings {
                 domain: Some("https://example.com".into()),
                 root_dir: "/notes/".into(),

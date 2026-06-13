@@ -1,13 +1,14 @@
 # Weibian: A Note System Powered by Typst
 
-Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It is now a thin wrapper around Typst's experimental bundle export: Weibian discovers notes and assets, generates a synthetic bundle entrypoint, and delegates rendering, links, transclusion, backmatter, HTML, and PDF output to Typst templates.
+Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It is built around Typst's experimental bundle export: Weibian discovers notes and assets, generates a synthetic bundle entrypoint, and delegates rendering, links, transclusion, backmatter, HTML, and PDF output to Typst templates.
 
 There is a [demo site](https://hanwenguo.github.io/weibian/) showcasing Weibian's features, built with Weibian itself as a live example.
 
 ## Requirements
 
-- Typst 0.15 RC CLI available on your PATH (`typst`) with the experimental `bundle` and `html` features
 - Rust toolchain only if building from source
+
+Weibian uses Typst as a library by default, so no separate Typst installation is required. If compatibility issues arise, one could switch to a compiler installed on the host system through the `--compiler host` option. Note that the host compiler must be newer than Typst 0.15 (which is in RC stage as of this writing) to work with Weibian.
 
 ## Installation
 
@@ -55,7 +56,25 @@ wb compile \
 
 `--public-dir` is resolved relative to the input directory unless it is absolute, so `--public-dir public` means `typ/public`. Include/exclude globs in `weibian.toml` are matched against paths relative to the input directory. If you keep a handwritten bundle entrypoint such as `typ/index.typ`, exclude it explicitly to avoid duplicate `#document` or `#asset` output.
 
-`wb compile` forwards Typst compile options such as `--input`, `--font-path`, `--package-path`, `--creation-timestamp`, `--pretty`, `--pages`, `--pdf-standard`, `--no-pdf-tags`, `--ppi`, `--deps`, `--deps-format`, `--jobs`, `--diagnostic-format`, `--open`, and `--timings`. Weibian owns the input/output paths, project root, output format, and feature flags, and always invokes Typst as bundle export with `bundle,html` enabled.
+`wb compile` supports most Typst compile options. Weibian owns the input/output paths, project root, output format, and feature flags, and always invokes Typst as bundle export with `bundle,html` enabled.
+
+By default, `wb compile` uses the embedded Typst-as-a-library compiler. To use a host Typst binary instead:
+
+```bash
+wb compile --compiler host
+```
+
+You can also set the backend in `weibian.toml`:
+
+```toml
+[compiler]
+backend = "library" # or "host"
+```
+
+The Cargo features `library-compiler` and `host-compiler` are both enabled by
+default. Build with `--no-default-features --features host-compiler` for a
+host-only binary, or with `--no-default-features --features library-compiler`
+for an embedded-only binary.
 
 ## Features
 

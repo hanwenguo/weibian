@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use clap::builder::{BoolishValueParser, TypedValueParser, ValueParser};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum, ValueHint};
+use serde::Deserialize;
 
 /// The character typically used to separate path components
 /// in environment variables.
@@ -92,6 +93,10 @@ pub struct CompileArgs {
     #[clap(long = "public-dir", value_hint = ValueHint::DirPath)]
     pub public: Option<PathBuf>,
 
+    /// Compiler backend to use for this compile.
+    #[arg(long = "compiler", value_enum)]
+    pub compiler: Option<CompilerBackendKind>,
+
     /// Site configuration.
     #[clap(flatten)]
     pub site: SiteArgs,
@@ -99,6 +104,36 @@ pub struct CompileArgs {
     /// Typst compile arguments that Weibian forwards.
     #[clap(flatten)]
     pub typst: TypstCompileArgs,
+}
+
+/// Which Typst compiler backend Weibian should use.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, ValueEnum, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompilerBackendKind {
+    /// Compile through Typst as an embedded library.
+    #[default]
+    Library,
+    /// Compile by invoking the host `typst` binary.
+    Host,
+}
+
+impl Display for CompilerBackendKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.to_possible_value()
+            .expect("no values are skipped")
+            .get_name()
+            .fmt(f)
+    }
+}
+
+impl CompilerBackendKind {
+    pub fn compiled_default() -> Self {
+        if cfg!(feature = "library-compiler") {
+            Self::Library
+        } else {
+            Self::Host
+        }
+    }
 }
 
 /// Site configuration overrides.

@@ -8,7 +8,7 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::args::{CompileArgs, TypstCompileArgs};
+use crate::args::{CompileArgs, CompilerBackendKind, TypstCompileArgs};
 use crate::error::StrResult;
 
 const DEFAULT_CONFIG_PATH: &str = "weibian.toml";
@@ -17,6 +17,9 @@ const DEFAULT_CONFIG_PATH: &str = "weibian.toml";
 pub struct WeibianConfig {
     #[serde(default, alias = "directories")]
     pub files: FilesConfig,
+
+    #[serde(default)]
+    pub compiler: CompilerConfig,
 
     #[serde(default)]
     pub site: SiteConfig,
@@ -38,6 +41,11 @@ pub struct SiteConfig {
     pub domain: Option<String>,
     pub root_dir: Option<String>,
     pub trailing_slash: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct CompilerConfig {
+    pub backend: Option<CompilerBackendKind>,
 }
 #[derive(Debug, Clone)]
 pub struct SiteSettings {
@@ -88,6 +96,7 @@ pub struct BuildConfig {
     pub input_filters: InputFilters,
     pub public_directory: PathBuf,
     pub output_directory: PathBuf,
+    pub compiler_backend: CompilerBackendKind,
     pub site: SiteSettings,
     pub typst: TypstCompileArgs,
 }
@@ -142,11 +151,16 @@ impl BuildConfig {
             .site
             .trailing_slash
             .unwrap_or(config.site.trailing_slash.unwrap_or(false));
+        let compiler_backend = args
+            .compiler
+            .or(config.compiler.backend)
+            .unwrap_or_else(CompilerBackendKind::compiled_default);
         Ok(Self {
             input_directory,
             input_filters,
             public_directory,
             output_directory,
+            compiler_backend,
             site: SiteSettings {
                 domain,
                 root_dir,
@@ -277,7 +291,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::args::{CompileArgs, SiteArgs, TypstCompileArgs};
+    use crate::args::{CompileArgs, CompilerBackendKind, SiteArgs, TypstCompileArgs};
 
     use super::{BuildConfig, FilesConfig, WeibianConfig, load_config};
 
@@ -315,6 +329,7 @@ mod tests {
             input,
             public,
             output: None,
+            compiler: None,
             site: SiteArgs {
                 domain: None,
                 root_dir: None,
@@ -358,6 +373,7 @@ mod tests {
                 include: vec![],
                 exclude: vec![],
             },
+            compiler: Default::default(),
             site: Default::default(),
         };
 
@@ -383,6 +399,7 @@ mod tests {
                 include: vec![],
                 exclude: vec![],
             },
+            compiler: Default::default(),
             site: Default::default(),
         };
 
@@ -390,5 +407,86 @@ mod tests {
             .expect_err("outside public dir should fail");
 
         assert!(err.contains("must be inside input directory"));
+    }
+
+    #[test]
+    fn cli_compiler_backend_overrides_config_backend() {
+        let root = temp_project("compiler-cli");
+        let input = root.join("typ");
+        fs::create_dir_all(input.join("public")).expect("failed to create public dir");
+
+        let mut args = compile_args(None, None);
+        args.compiler = Some(CompilerBackendKind::Host);
+
+        let config = WeibianConfig {
+            files: FilesConfig {
+                input_dir: Some(input),
+                output_dir: Some(root.join("dist")),
+                public_dir: None,
+                include: vec![],
+                exclude: vec![],
+            },
+            compiler: super::CompilerConfig {
+                backend: Some(CompilerBackendKind::Library),
+            },
+            site: Default::default(),
+        };
+
+        let build = BuildConfig::from(&args, &config).expect("build config should resolve");
+
+        assert_eq!(build.compiler_backend, CompilerBackendKind::Host);
+    }
+
+    #[test]
+    fn config_compiler_backend_is_used_when_cli_is_absent() {
+        let root = temp_project("compiler-config");
+        let input = root.join("typ");
+        fs::create_dir_all(input.join("public")).expect("failed to create public dir");
+
+        let config = WeibianConfig {
+            files: FilesConfig {
+                input_dir: Some(input),
+                output_dir: Some(root.join("dist")),
+                public_dir: None,
+                include: vec![],
+                exclude: vec![],
+            },
+            compiler: super::CompilerConfig {
+                backend: Some(CompilerBackendKind::Host),
+            },
+            site: Default::default(),
+        };
+
+        let build = BuildConfig::from(&compile_args(None, None), &config)
+            .expect("build config should resolve");
+
+        assert_eq!(build.compiler_backend, CompilerBackendKind::Host);
+    }
+
+    #[test]
+    fn compiled_default_compiler_backend_is_used_when_unspecified() {
+        let root = temp_project("compiler-default");
+        let input = root.join("typ");
+        fs::create_dir_all(input.join("public")).expect("failed to create public dir");
+
+        let config = WeibianConfig {
+            files: FilesConfig {
+                input_dir: Some(input),
+                output_dir: Some(root.join("dist")),
+                public_dir: None,
+                include: vec![],
+                exclude: vec![],
+            },
+            compiler: Default::default(),
+            site: Default::default(),
+        };
+
+        let build = BuildConfig::from(&compile_args(None, None), &config)
+            .expect("build config should resolve");
+
+        assert_eq!(
+            build.compiler_backend,
+            CompilerBackendKind::compiled_default()
+        );
     }
 }
