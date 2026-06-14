@@ -35,7 +35,7 @@
   :group 'denote)
 
 (defconst denote-weibian-transclusion-prompt-types
-  '(show-metadata expanded disable-numbering demote-headings)
+  '(show-metadata expanded disable-numbering)
   "Supported prompt symbols for `denote-weibian-transclusion-prompts'.")
 
 (defcustom denote-weibian-transclusion-prompts nil
@@ -51,8 +51,6 @@ of the following:
 - `disable-numbering': Prompt for the `disable-numbering' argument of
   `#tr'.
 
-- `demote-headings': Prompt for the `demote-headings' argument of `#tr'.
-
 The prompts occur in the given order.
 
 If the value of this user option is nil, no transclusion option prompts
@@ -63,10 +61,9 @@ available transclusion options once."
   :group 'denote-weibian
   :type '(radio (const :tag "Use no prompts" nil)
                 (set :tag "Available prompts" :greedy t
-                     (const :tag "Show metadata" show-metadata)
-                     (const :tag "Expanded" expanded)
-                     (const :tag "Disable numbering" disable-numbering)
-                     (const :tag "Demote headings" demote-headings))))
+                  (const :tag "Show metadata" show-metadata)
+                  (const :tag "Expanded" expanded)
+                  (const :tag "Disable numbering" disable-numbering))))
 
 (defvar denote-weibian-front-matter
   "#import \"/_template/template.typ\": template, tr, ln, ct, inline-tree
@@ -217,12 +214,6 @@ Consult the `denote-file-types' for how this is used."
   "Format boolean VALUE for Typst transclusion options."
   (if value "true" "false"))
 
-(defun denote-weibian--format-transclusion-integer (value)
-  "Format non-negative integer VALUE for Typst transclusion options."
-  (unless (natnump value)
-    (user-error "Transclusion option `demote-headings' must be a non-negative integer"))
-  (number-to-string value))
-
 (defun denote-weibian--format-transclusion-option (option value)
   "Format Typst transclusion OPTION with VALUE."
   (pcase option
@@ -235,17 +226,14 @@ Consult the `denote-file-types' for how this is used."
     ('disable-numbering
      (format "disable-numbering: %s"
              (denote-weibian--format-transclusion-boolean value)))
-    ('demote-headings
-     (format "demote-headings: %s"
-             (denote-weibian--format-transclusion-integer value)))
     (_ (user-error "Unknown transclusion option `%s'" option))))
 
 (defun denote-weibian-format-transclude (file &rest options)
   "Prepare transclusion to FILE with Typst OPTIONS.
 
 OPTIONS is a plist whose recognized keys are `:show-metadata',
-`:expanded', `:disable-numbering', and `:demote-headings'.  Omitted
-keys are not written to the resulting `#tr' call."
+`:expanded', and `:disable-numbering'. Omitted keys are not written to
+the resulting `#tr' call."
   (let* ((identifier (denote-retrieve-filename-identifier file))
          (arguments '()))
     (unless identifier
@@ -287,13 +275,6 @@ keys are not written to the resulting `#tr' call."
   "Prompt for the `disable-numbering' transclusion option."
   (denote-weibian--prompt-transclusion-boolean "Disable numbering" nil))
 
-(defun denote-weibian--prompt-transclusion-demote-headings ()
-  "Prompt for the `demote-headings' transclusion option."
-  (let ((value (read-number "Demote headings (default 1): " 1)))
-    (unless (natnump value)
-      (user-error "Transclusion option `demote-headings' must be a non-negative integer"))
-    value))
-
 (defun denote-weibian--prompt-transclusion-option (option)
   "Prompt for transclusion OPTION and return its value."
   (pcase option
@@ -303,8 +284,6 @@ keys are not written to the resulting `#tr' call."
      (denote-weibian--prompt-transclusion-expanded))
     ('disable-numbering
      (denote-weibian--prompt-transclusion-disable-numbering))
-    ('demote-headings
-     (denote-weibian--prompt-transclusion-demote-headings))
     (_
      (user-error "Unknown transclusion prompt `%s'" option))))
 
@@ -328,10 +307,9 @@ With a prefix argument (\\[universal-argument]), prompt for all
 available transclusion options once.
 
 When called from Lisp, FILE is a string representing a full file system
-path.  OPTIONS is a plist whose recognized keys are
-`:show-metadata', `:expanded', `:disable-numbering', and
-`:demote-headings'.  Omit a key from OPTIONS to use the default value
-defined by the Typst `#tr' template."
+path. OPTIONS is a plist whose recognized keys are `:show-metadata',
+`:expanded', and `:disable-numbering'. Omit a key from OPTIONS to use
+the default value defined by the Typst `#tr' template."
   (interactive
    (let* ((file (denote-file-prompt nil "Transclude FILE" nil :has-identifier))
           (prompts (if current-prefix-arg
