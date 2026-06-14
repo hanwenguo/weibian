@@ -7,6 +7,43 @@
 #let current-id-stack = state("current-id-stack", ())
 #let in-main-content = state("in-main-content", false)
 
+#let _graph-edge(relation, dest) = {
+  [#context [#metadata((
+    kind: "wb-edge",
+    relation: relation,
+    dest: dest,
+    copy-depth: counter("graph-copy-depth").get().first(),
+  )) <wb-edge-record>]]
+}
+
+#let _owned-edge-values(id) = {
+  let start = label(id + "-main-start")
+  let end = label(id + "-main-end")
+  query(selector(<wb-edge-record>).after(start).before(end))
+    .filter(item => {
+      let value = item.value
+      if type(value) != dictionary or value.at("kind", default: none) != "wb-edge" {
+        return false
+      }
+      if value.at("copy-depth", default: 0) != 0 {
+        return false
+      }
+      return true
+    })
+    .map(item => item.value)
+}
+
+#let _graph-relations(id, relation) = {
+  _owned-edge-values(id)
+    .filter(value => value.at("relation", default: none) == relation)
+    .map(value => value.at("dest"))
+    .dedup()
+}
+
+#let _graph-incoming(id, relation) = {
+  all-posts.final().filter(x => _graph-relations(x, relation).contains(id))
+}
+
 #let _default-metadata = (..attrs) => {
   _guard-and-render-metadata("date", it => {
     _meta-item(it.display("[month repr:long] [day], [year]"))
@@ -262,6 +299,7 @@
 ) = [
   #metadata(attrs) #label(identifier + "-metadata")
   #metadata(title) #label(identifier + "-title")
+  #metadata(none) #label(identifier + "-main-start")
   #html-section(
     identifier: identifier,
     title: title,
@@ -271,6 +309,7 @@
     [#html.div(main-part) #label(identifier)],
     ..attrs,
   )
+  #metadata(none) #label(identifier + "-main-end")
 ]
 
 #let tr(id, show-metadata: false, expanded: true, disable-numbering: false) = {
@@ -279,15 +318,10 @@
   } else {
     (:)
   }
-  counter("transclusion-depth").update(x => x + 1)
-
   let true-id = id.slice(3)
-  context if in-main-content.get() {
-    let stack = current-id-stack.get()
-    state(stack.last() + "-transcluded").update(arr => if arr.contains(true-id) { arr } else {
-      arr + (true-id,)
-    })
-  }
+  _graph-edge("transcluded", true-id)
+  counter("transclusion-depth").update(x => x + 1)
+  counter("graph-copy-depth").update(x => x + 1)
   context if in-main-content.get() { current-id-stack.update(arr => arr + (true-id,)) }
   context html-section(
     identifier: true-id,
@@ -300,16 +334,13 @@
   )
   context if in-main-content.get() { current-id-stack.update(arr => arr.slice(0, -1)) }
 
+  counter("graph-copy-depth").update(x => x - 1)
   counter("transclusion-depth").update(x => x - 1)
 }
 
 #let ln(dest, body) = {
   let true-dest = dest.slice(3)
-  context if in-main-content.get() {
-    state(current-id-stack.get().last() + "-linked").update(arr => if arr.contains(true-dest) { arr } else {
-      arr + (true-dest,)
-    })
-  }
+  _graph-edge("linked", true-dest)
   html.span(
     class: "link local",
     html.a(
@@ -321,11 +352,7 @@
 
 #let ct(dest, body) = {
   let true-dest = dest.slice(3)
-  context if in-main-content.get() {
-    state(current-id-stack.get().last() + "-cited").update(arr => if arr.contains(true-dest) { arr } else {
-      arr + (true-dest,)
-    })
-  }
+  _graph-edge("cited", true-dest)
   html.span(
     class: "link local citation",
     html.a(
@@ -384,16 +411,7 @@
 
 #let backmatter-contexts(id) = {
   context {
-    let contexts = all-posts
-      .final()
-      .filter(x => {
-        let transcluded = state(x + "-transcluded", ()).at(label("after-" + x))
-        if transcluded != none {
-          return transcluded.contains(id)
-        } else {
-          return false
-        }
-      })
+    let contexts = _graph-incoming(id, "transcluded")
     if contexts.len() > 0 {
       backmatter-section(
         "Contexts",
@@ -405,7 +423,7 @@
 
 #let backmatter-references(id) = {
   context {
-    let references = state(id + "-cited", ()).at(label("after-" + id))
+    let references = _graph-relations(id, "cited")
     if references.len() > 0 {
       backmatter-section(
         "References",
@@ -417,16 +435,7 @@
 
 #let backmatter-backlinks(id) = {
   context {
-    let backlinks = all-posts
-      .final()
-      .filter(x => {
-        let linked = state(x + "-linked", ()).at(label("after-" + x))
-        if linked != none {
-          return linked.contains(id)
-        } else {
-          return false
-        }
-      })
+    let backlinks = _graph-incoming(id, "linked")
     if backlinks.len() > 0 {
       backmatter-section(
         "Backlinks",
@@ -439,8 +448,8 @@
 #let backmatter-related(id) = {
   context {
     let get-related(x) = {
-      let linked = state(x + "-linked", ()).at(label("after-" + x))
-      let transcluded = state(x + "-transcluded", ()).at(label("after-" + x))
+      let linked = _graph-relations(x, "linked")
+      let transcluded = _graph-relations(x, "transcluded")
       let transcluded-linked = transcluded.map(get-related).flatten()
       return (linked + transcluded-linked).filter(x => (not transcluded.contains(x)) and x != id)
     }
@@ -501,10 +510,8 @@
             )
             html.article({
               counter("transclusion-depth").update(0)
+              counter("graph-copy-depth").update(0)
 
-              let this-transcluded = state(identifier + "-transcluded", ())
-              let this-linked = state(identifier + "-linked", ())
-              let this-cited = state(identifier + "-cited", ())
               let this-toc-stack = state(identifier + "-toc-stack", ())
               let this-toc-result = state(identifier + "-toc-result", ())
 
