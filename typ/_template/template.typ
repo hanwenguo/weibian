@@ -205,6 +205,24 @@
   )
 }
 
+#let toc(id) = {
+  context {
+    let toc-items = state(id + "-toc-result", ()).get()
+    if toc-items.len() > 0 {
+      html.nav(
+        id: "toc",
+        html.div(
+          class: "block",
+          {
+            html.h1("Table of Contents")
+            render-toc(toc-items)
+          },
+        ),
+      )
+    }
+  }
+}
+
 #let _summary_header(
   identifier: none,
   title: none,
@@ -468,6 +486,7 @@
   lang: "en",
   identifier: "",
   title: "",
+  enable-toc: true,
   main-part,
 ) = {
   html.html(
@@ -533,16 +552,7 @@
                 })
               }
             })
-            html.nav(
-              id: "toc",
-              html.div(
-                class: "block",
-                {
-                  html.h1("Table of Contents")
-                  context render-toc(state(identifier + "-toc-result", ()).get())
-                },
-              ),
-            )
+            if enable-toc { toc(identifier) }
           },
         ),
       )
@@ -575,6 +585,8 @@
 
     show footnote: it => html.aside(it.body)
     html-frame(
+      lang: attrs.at("lang", default: site.config.default-lang),
+      enable-toc: attrs.at("toc", default: true),
       identifier: identifier,
       title: title,
       html-content-frame(identifier: identifier, title: title, doc, ..attrs),
