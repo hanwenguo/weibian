@@ -53,9 +53,9 @@
       it.map(a => { a }).join(", ")
     }))
   })(attrs)
-  if attrs.at("export-pdf", default: false) {
-    _meta-item(link("/pdf/" + attrs.at("identifier", default: "") + ".pdf", "PDF"))
-  }
+  // if attrs.at("export-pdf", default: false) {
+  //   _meta-item(link("/pdf/" + attrs.at("identifier", default: "") + ".pdf", "PDF"))
+  // }
 }
 
 #let _common-metadata-for-bibliography-entry = (..attrs) => {
@@ -244,7 +244,6 @@
           }
           title
         }
-        identifier = if identifier == none { plain-text(title) } else { identifier }
         let href = if inline {
           "#" + identifier
         } else {
@@ -255,7 +254,7 @@
           _calc-toc(current-id-stack.get().first(), identifier, href, disable-numbering, title-part)
         }
         " "
-        html.a(class: "slug", href: href, "[" + identifier + "]")
+        if identifier != none { html.a(class: "slug", href: href, "[" + identifier + "]") }
       })
       if show-metadata {
         html.div(class: "metadata", {

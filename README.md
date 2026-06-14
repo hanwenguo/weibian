@@ -1,6 +1,6 @@
 # Weibian: A Note System Powered by Typst
 
-Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It is built around Typst's experimental bundle export: Weibian discovers notes and assets, generates a synthetic bundle entrypoint, and delegates rendering, links, transclusion, backmatter, HTML, and PDF output to Typst templates.
+Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It is built around Typst's experimental bundle export: Weibian discovers notes and assets, generates a synthetic bundle entrypoint, and delegates rendering, links, transclusion, backmatter, and HTML output to Typst templates.
 
 There is a [demo site](https://hanwenguo.github.io/weibian/) showcasing Weibian's features, built with Weibian itself as a live example.
 
@@ -117,7 +117,6 @@ library compiler.
 - Transclusion of notes
 - Backmatter generation (backlinks, contexts, references, related notes)
 - TOC generation
-- PDF export of individual notes
 - Include/exclude notes based on glob patterns
 
 ## Planned
