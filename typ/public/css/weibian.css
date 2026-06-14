@@ -1,0 +1,927 @@
+/* SPDX-License-Identifier: CC0-1.0 */
+
+/* A modified version of the Forester CSS theme,
+   see https://git.sr.ht/~jonsterling/forester-base-theme/tree/main/item/style
+   for the original, which is licensed under the CC0 1.0 license.
+*/
+
+/* ========================================
+   CSS Custom Properties
+   ======================================== */
+
+:root {
+    /* Enable light-dark() function */
+    color-scheme: light dark;
+
+    /* Spacing */
+    --space-xs: 0.25em;
+    --space-sm: 0.5em;
+    --space-md: 1em;
+    --space-lg: 1.5em;
+    --space-xl: 2em;
+    --content-gap: 0.9375rem;
+    --radius: 0.3125rem;
+
+    /* Colors - Modus Themes palette */
+    /* See https://protesilaos.com/emacs/modus-themes-colors */
+    --color-text: light-dark(#000000, #ffffff); /* fg-main */
+    --color-text-subtle: light-dark(#193668, #c6daff); /* fg-alt */
+    --color-text-faded: light-dark(#595959, #989898); /* fg-dim */
+    --color-text-emphasis: light-dark(#8f0075, #f78fe7); /* magenta-warmer */
+    --color-background: light-dark(#ffffff, #000000); /* bg-main */
+    --color-border: light-dark(#9f9f9f, #646464); /* border */
+    --color-accent: light-dark(#b2e4dc, #45605e); /* bg-hover */
+    --color-accent-hover: light-dark(
+        #b2e4dc28,
+        #45605e40
+    ); /* bg-hover with opacity */
+    --color-error: light-dark(#a60000, #ff5f59); /* err */
+    --color-info: light-dark(#005f5f, #6ae4b9); /* info */
+    --color-mark: light-dark(#dae5ec, #2f3849); /* bg-hl-line */
+
+    /* Typography */
+    --font-body: "Libertinus Sans", sans-serif;
+    --font-heading: "Libertinus Serif Display", "Libertinus Serif", serif;
+    --font-size-base: 1.125rem;
+    --font-size-sm: 1rem;
+    --font-size-xs: 0.875rem;
+    --font-size-heading-xl: 1.75rem;
+    --font-size-heading-lg: 1.5rem;
+    --font-size-heading-md: 1.375rem;
+    --font-size-heading-sm: 1.125rem;
+    --font-size-heading-xs: 1.0625rem;
+    --font-size-heading-block: 1rem;
+    --line-height-base: 1.55;
+    --line-height-heading: 1.2;
+
+    /* Transitions */
+    --transition-fast: 0.2s ease;
+    --transition-normal: 0.3s ease;
+}
+
+/* ========================================
+   Base HTML
+   ======================================== */
+
+body {
+    font-family: var(--font-body);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
+    color: var(--color-text);
+    background-color: var(--color-background);
+    counter-reset: heading-2;
+    hyphens: auto;
+    text-wrap: pretty;
+    accent-color: var(--color-accent);
+}
+
+a {
+    color: var(--color-text);
+    text-decoration: inherit;
+}
+
+h1 {
+    font-family: var(--font-heading);
+    line-height: var(--line-height-heading);
+    margin-block-end: 0;
+    text-wrap: balance;
+}
+
+p {
+    margin-block-start: var(--space-sm);
+    margin-block-end: 1lh;
+}
+
+p:has(+ .math-display) {
+    margin-block-end: var(--space-sm);
+}
+
+p:last-child,
+p:has(+ section, + ul, + ol, + pre) {
+    margin-block-end: var(--space-sm);
+}
+
+summary {
+    margin-block: var(--space-xs);
+}
+
+/* ========================================
+   Typst Output
+   ======================================== */
+
+pre,
+code {
+    border-radius: var(--radius);
+}
+
+code {
+    padding: 0.2em;
+    font-size: var(--font-size-xs);
+}
+
+code:not(:is(pre code)) {
+    color: var(--color-text-emphasis);
+}
+
+pre {
+    padding: var(--space-sm);
+    font-size: var(--font-size-sm);
+    margin-block-start: 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+math {
+    font-family: "Libertinus Math", math;
+}
+
+.math-display {
+    margin-block: var(--space-md);
+}
+
+.math-display svg {
+    display: block;
+    margin-inline: auto;
+}
+
+:is(pre, img, section, center) {
+    overflow-y: hidden;
+}
+
+img {
+    object-fit: cover;
+    max-inline-size: 100%;
+    block-size: auto;
+}
+
+figure {
+    text-align: center;
+}
+
+figcaption {
+    font-style: italic;
+    padding: 0.1875rem;
+}
+
+table {
+    margin-block-end: var(--space-md);
+}
+
+:is(th, td) {
+    padding-inline: 0.9375rem;
+    vertical-align: top;
+}
+
+th {
+    text-align: start;
+}
+
+blockquote {
+    border-inline-start: 1px solid var(--color-border);
+    font-style: italic;
+}
+
+:is(ul, ol) {
+    margin-block-start: var(--space-sm);
+    margin-block-end: var(--space-sm);
+}
+
+ol {
+    list-style-type: decimal;
+}
+
+ol li ol {
+    list-style-type: lower-alpha;
+}
+
+ol li ol li ol {
+    list-style-type: lower-roman;
+}
+
+mark {
+    background-color: var(--color-mark);
+}
+
+hr {
+    margin-block: 0.625rem 1.25rem;
+    background-color: var(--color-text-faded);
+    border: 0 none;
+    inline-size: 100%;
+    block-size: 0.125rem;
+}
+
+address {
+    display: inline;
+}
+
+/* ========================================
+   Page Layout
+   ======================================== */
+
+@media (width <= 1000px) {
+    body {
+        margin-block-start: var(--space-md);
+        margin-inline: var(--space-sm);
+    }
+
+    #grid-wrapper > nav {
+        display: none;
+    }
+}
+
+@media (width > 1000px) {
+    body {
+        margin-block-start: var(--space-xl);
+    }
+
+    #grid-wrapper {
+        display: grid;
+        grid-template-columns: 1fr minmax(auto, 90ex) 1fr;
+        gap: var(--space-sm);
+    }
+
+    #grid-wrapper > header {
+        grid-column: 2;
+        grid-row: 1;
+        min-height: 2.25rem;
+    }
+
+    #grid-wrapper > article {
+        grid-column: 2;
+        grid-row: 2;
+        max-inline-size: 90ex;
+    }
+
+    #grid-wrapper > nav {
+        grid-column: 1;
+        grid-row: 2 / 3;
+        justify-self: end;
+        position: sticky;
+        inset-block-start: var(--space-xl);
+        max-block-size: calc(100vh - var(--space-xl) * 2);
+        max-inline-size: 20rem;
+        overflow-y: auto;
+        padding-inline-end: var(--space-sm);
+    }
+}
+
+/* ========================================
+   Note Blocks
+   ======================================== */
+
+.block {
+    padding-inline-start: 0.5rem;
+    padding-inline-end: 0.75rem;
+    padding-block: 0.25rem;
+    border-radius: var(--radius);
+}
+
+.block > details {
+    margin-block-end: 0;
+}
+
+.block .block:hover {
+    background-color: var(--color-accent-hover);
+    transition: background-color var(--transition-fast);
+}
+
+details > summary {
+    list-style-type: none;
+}
+
+details > summary::marker,
+details > summary::-webkit-details-marker {
+    display: none;
+}
+
+details > summary > header {
+    display: inline;
+}
+
+details > summary > header > h1 {
+    &::after {
+        content: "◂";
+        margin-inline-start: var(--space-xs);
+        color: var(--color-text-faded);
+        font-size: 0.75em;
+        line-height: 1;
+        opacity: 0.8;
+    }
+}
+
+details[open] > summary > header > h1::after {
+    content: "▾";
+}
+
+article > section > details > summary > header {
+    display: block;
+    margin-block-end: var(--space-md);
+}
+
+article > section > details > summary > header > h1 {
+    font-size: var(--font-size-heading-xl);
+}
+
+article > section > details > summary > header > h1 > .taxon {
+    display: block;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-text-subtle);
+    padding-block-end: 0.375rem;
+}
+
+article > section > details > summary > header > h1 > .taxon::after {
+    content: ". ";
+}
+
+/* ========================================
+   Heading Depths
+   ======================================== */
+
+details h1 {
+    display: inline;
+    font-size: var(--font-size-heading-xs);
+}
+
+/* The current template emits every note heading as h1.
+   Semantic depth comes from the generated section/details nesting. */
+details
+    h1:is(
+        article
+            > section
+            > details
+            > div
+            > section
+            > details
+            > summary
+            > header
+            > h1,
+        article > footer > section > details > summary > header > h1
+    ) {
+    font-size: var(--font-size-heading-md);
+}
+
+details
+    h1:is(
+        article
+            > section
+            > details
+            > div
+            > section
+            > details
+            > div
+            > section
+            > details
+            > summary
+            > header
+            > h1,
+        article
+            > footer
+            > section
+            > details
+            > div
+            > section
+            > details
+            > summary
+            > header
+            > h1,
+        article
+            > section
+            > details
+            > div
+            > section
+            > details
+            > div
+            > section
+            > details
+            > div
+            > section
+            > details
+            > summary
+            > header
+            > h1,
+        article
+            > footer
+            > section
+            > details
+            > div
+            > section
+            > details
+            > div
+            > section
+            > details
+            > summary
+            > header
+            > h1
+    ) {
+    font-size: var(--font-size-heading-sm);
+}
+
+article > section > details > summary > header > h1,
+article
+    > :is(section > details > div, footer)
+    > section
+    > details
+    > summary
+    > header
+    > h1,
+article
+    > :is(section > details > div, footer)
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1,
+article
+    > :is(section > details > div, footer)
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1 {
+    margin-block-start: var(--space-sm);
+}
+
+article
+    > :is(section > details > div, footer)
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1,
+article
+    > :is(section > details > div, footer)
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1 {
+    margin-block-start: 0;
+    margin-block-end: 1lh;
+}
+
+/* ========================================
+   Heading Numbering
+   ======================================== */
+
+article > section > details > div > section > details {
+    counter-reset: heading-3;
+}
+
+article
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details {
+    counter-reset: heading-4;
+}
+
+article
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details {
+    counter-reset: heading-5;
+}
+
+article
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details {
+    counter-reset: heading-6;
+}
+
+article > section > details > div > section > details > summary > header > h1 {
+    counter-increment: heading-2;
+    --num: counter(heading-2);
+}
+
+article
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1 {
+    counter-increment: heading-3;
+    --num: counter(heading-2) "." counter(heading-3);
+}
+
+article
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1 {
+    counter-increment: heading-4;
+    --num: counter(heading-2) "." counter(heading-3) "." counter(heading-4);
+}
+
+article
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1 {
+    counter-increment: heading-5;
+    --num: counter(heading-2) "." counter(heading-3) "." counter(heading-4) "."
+        counter(heading-5);
+}
+
+article
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > div
+    > section
+    > details
+    > summary
+    > header
+    > h1 {
+    counter-increment: heading-6;
+    --num: counter(heading-2) "." counter(heading-3) "." counter(heading-4) "."
+        counter(heading-5) "." counter(heading-6);
+}
+
+section h1:not(:has(> .taxon))::before {
+    content: var(--num) ". ";
+}
+
+section h1 > .taxon::after {
+    content: " " var(--num) ". ";
+}
+
+section.disable-numbering h1 {
+    counter-increment: none;
+}
+
+section.disable-numbering h1::before {
+    content: none;
+}
+
+section.disable-numbering h1 > .taxon::after {
+    content: ". ";
+}
+
+/* ========================================
+   Table of Contents
+   ======================================== */
+
+nav#toc {
+    counter-reset: toc-2;
+    font-size: var(--font-size-sm);
+}
+
+nav#toc,
+nav#toc a {
+    color: var(--color-text-subtle);
+}
+
+nav#toc h1 {
+    margin-block-start: 0;
+    font-size: var(--font-size-heading-sm);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+nav#toc h2 {
+    font-size: 1em;
+}
+
+nav#toc ul {
+    list-style-type: none;
+    padding-inline-start: 0;
+    margin: 0;
+}
+
+nav#toc li {
+    list-style-position: inside;
+    padding-block: 0.0625rem;
+    line-height: 1.35;
+}
+
+nav#toc li > ul {
+    padding-inline-start: 0.875rem;
+    margin-inline-start: 0.25rem;
+}
+
+nav#toc .link {
+    box-shadow: none;
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+nav#toc .link:hover {
+    color: var(--color-text);
+}
+
+nav#toc a.bullet {
+    opacity: 0.5;
+    margin-inline-end: 0.25em;
+    padding-inline: 0.15em;
+    text-decoration: none;
+}
+
+nav#toc a.slug {
+    display: none;
+}
+
+nav#toc > div.block > ul > li {
+    counter-reset: toc-3;
+}
+
+nav#toc > div.block > ul > li > ul > li {
+    counter-reset: toc-4;
+}
+
+nav#toc > div.block > ul > li > ul > li > ul > li {
+    counter-reset: toc-5;
+}
+
+nav#toc > div.block > ul > li > ul > li > ul > li > ul > li {
+    counter-reset: toc-6;
+}
+
+nav#toc > div.block > ul > li > a.link.local {
+    counter-increment: toc-2;
+    --num: counter(toc-2);
+}
+
+nav#toc > div.block > ul > li > ul > li > a.link.local {
+    counter-increment: toc-3;
+    --num: counter(toc-2) "." counter(toc-3);
+}
+
+nav#toc > div.block > ul > li > ul > li > ul > li > a.link.local {
+    counter-increment: toc-4;
+    --num: counter(toc-2) "." counter(toc-3) "." counter(toc-4);
+}
+
+nav#toc > div.block > ul > li > ul > li > ul > li > ul > li > a.link.local {
+    counter-increment: toc-5;
+    --num: counter(toc-2) "." counter(toc-3) "." counter(toc-4) "."
+        counter(toc-5);
+}
+
+nav#toc
+    > div.block
+    > ul
+    > li
+    > ul
+    > li
+    > ul
+    > li
+    > ul
+    > li
+    > ul
+    > li
+    > a.link.local {
+    counter-increment: toc-6;
+    --num: counter(toc-2) "." counter(toc-3) "." counter(toc-4) "."
+        counter(toc-5) "." counter(toc-6);
+}
+
+nav#toc a.link.local:not(:has(> .taxon))::before {
+    content: var(--num) ". ";
+}
+
+nav#toc a.link.local > .taxon::after {
+    content: " " var(--num) ". ";
+}
+
+nav#toc div.block li.disable-numbering a.link.local {
+    counter-increment: none;
+}
+
+nav#toc div.block li.disable-numbering a.link.local::before {
+    content: none;
+}
+
+nav#toc div.block li.disable-numbering a.link.local > .taxon::after {
+    content: ". ";
+}
+
+/* ========================================
+   Links and Metadata
+   ======================================== */
+
+.link {
+    cursor: pointer;
+}
+
+.link.external {
+    text-decoration: underline;
+}
+
+.link:hover {
+    background-color: var(--color-accent-hover);
+}
+
+:is(a.link.local, .link.local a, a.slug) {
+    box-shadow: none;
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: var(--color-border);
+    text-underline-offset: 0.15em;
+    transition: text-decoration-color var(--transition-fast);
+}
+
+:is(a.link.local, .link.local a, a.slug):hover {
+    text-decoration-color: var(--color-accent);
+}
+
+:is(a.slug, a.bullet):hover {
+    background-color: var(--color-accent-hover);
+}
+
+.metadata ul {
+    padding-inline-start: 0;
+    display: inline;
+}
+
+.metadata li {
+    display: inline;
+}
+
+.metadata li::after {
+    content: " · ";
+}
+
+.metadata li:last-child::after {
+    content: "";
+}
+
+:is(.slug, .orcid) {
+    color: var(--color-text-faded);
+    font-weight: 300;
+    font-size: var(--font-size-xs);
+    opacity: 0.8;
+    transition: opacity var(--transition-fast);
+}
+
+:is(.slug, .orcid):hover {
+    opacity: 1;
+}
+
+span.taxon {
+    color: var(--color-text-faded);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+
+footer > section {
+    margin-block-end: var(--space-md);
+}
+
+/* ========================================
+   Sidenotes
+   ======================================== */
+
+@media (width > 1000px) {
+    body {
+        margin-block-start: var(--space-xl);
+        margin-block-end: var(--space-xl);
+    }
+
+    #grid-wrapper > article {
+        position: relative;
+    }
+
+    aside {
+        text-align: left;
+        font-size: var(--font-size-sm);
+        max-inline-size: 16rem;
+        position: absolute;
+        right: -40%;
+        margin-top: var(--space-xs);
+        margin-bottom: var(--space-xs);
+    }
+
+    #grid-wrapper > article,
+    #grid-wrapper > article > section,
+    #grid-wrapper > article > section > details {
+        overflow: visible;
+    }
+}
+
+@media (width <= 1000px) {
+    aside {
+        font-size: var(--font-size-sm);
+        float: none;
+        clear: none;
+        position: relative;
+        margin: 1rem 0 1rem auto;
+        padding: 1rem 0.5rem;
+        left: 0;
+        bottom: 0;
+        text-align: left;
+        width: initial;
+        max-width: 85%;
+        border-top: 1px solid;
+        border-bottom: 1px solid;
+    }
+
+    aside::after {
+        content: "sidenote";
+        font-size: 10px;
+        position: absolute;
+        right: 0;
+        bottom: 0.1rem;
+    }
+}

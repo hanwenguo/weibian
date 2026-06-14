@@ -3,7 +3,7 @@ input_dir = "typ"
 output_dir = "dist"
 public_dir = "public"
 include = ["**/*.typ"]  # optional; defaults to all files in input_dir
-exclude = ["_template/*.typ"]   # optional; exclude has priority over include
+exclude = ["index.typ", "_template/*.typ"]   # optional; exclude has priority over include
 # the above is the equivalent of the corresponding CLI flags
 
 [site]

@@ -1,350 +1,42 @@
-use std::collections::{BTreeMap, HashMap};
-use std::fs;
-use std::path::{Component, Path, PathBuf};
-
 use ecow::eco_format;
 
-use crate::error::StrResult;
-use crate::html::HtmlNote;
-
 use crate::args::CompileCommand;
-use crate::compiler::{
-    CliTypstCompiler, CompileArtifact, CompileOutput, CompileRequest, CompileTarget, TypstCompiler,
-};
+use crate::bundle::{collect_asset_files, collect_typst_sources, render_entrypoint};
 use crate::config::{BuildConfig, WeibianConfig};
-use crate::{backend, frontend};
-// use crate::args::Output;
-// use crate::args::Input;
+use crate::error::StrResult;
 
-// type CodespanResult<T> = Result<T, CodespanError>;
-// type CodespanError = codespan_reporting::files::Error;
-
-struct PdfExportNote {
-    id: String,
-    source_path: PathBuf,
-    export_pdf: bool,
+pub struct PreparedCompile {
+    pub entrypoint: String,
 }
-
-const ID_FILENAME_MAP_FILENAME: &str = "id-filename.json";
-const ID_FILENAME_MAP_ROOT_PATH: &str = "/id-filename.json";
 
 pub fn compile(command: &CompileCommand, config: &WeibianConfig) -> StrResult<()> {
     let build_config = BuildConfig::from(&command.args, config)?;
-    let compiler = CliTypstCompiler;
+    let prepared = prepare_compile(&build_config)?;
 
-    let html_notes = frontend::compile_html(&build_config, &compiler)?;
-    let pdf_export_notes = collect_pdf_export_notes(&html_notes)?;
-    let id_filename_map = build_id_filename_map(&build_config, &html_notes)?;
-    let id_filename_map_json = serialize_id_filename_map(&id_filename_map)?;
-    backend::process_html(&build_config, html_notes)?;
-    write_id_filename_map(&build_config, id_filename_map_json.as_str())?;
-    export_pdf_notes(&build_config, &compiler, &pdf_export_notes)?;
-
-    // let mut world = SystemWorld::new(
-    //     &command.args.input,
-    //     &command.args.world,
-    //     &command.args.process,
-    // )
-    // .map_err(|err| eco_format!("{err}"))?;
-
-    // match &build_config.input {
-    //     BuildInput::Directory(_) => compile_multiple(&mut world, &build_config),
-    //     _ => {
-    //         if let BuildOutput::Directory(dir) = build_config.output {
-    //             todo!()
-    //         } else {
-    //             // both input and output are not directories
-    //             let config = SingleCompileConfig::new(
-    //                 build_config.input.clone().into(),
-    //                 build_config.output.clone().into(),
-    //                 &build_config,
-    //             )?;
-    //             compile_once(&mut world, &config)
-    //         }
-    //     }
-    // }
-    Ok(())
+    crate::compiler::compile_bundle(&build_config, &prepared.entrypoint)
 }
 
-fn collect_pdf_export_notes(html_notes: &[HtmlNote]) -> StrResult<Vec<PdfExportNote>> {
-    let mut pdf_export_notes = Vec::with_capacity(html_notes.len());
-
-    for note in html_notes {
-        let metadata = crate::html::extract_metadata(&note.document).map_err(|err| {
-            eco_format!(
-                "failed to extract metadata for {}: {err}",
-                note.source_path.display()
-            )
-        })?;
-        pdf_export_notes.push(PdfExportNote {
-            id: note.id.clone(),
-            source_path: note.source_path.clone(),
-            export_pdf: should_export_pdf(&metadata),
-        });
-    }
-
-    Ok(pdf_export_notes)
-}
-
-fn should_export_pdf(metadata: &HashMap<String, String>) -> bool {
-    !metadata
-        .get("export-pdf")
-        .is_some_and(|value| value.eq_ignore_ascii_case("false"))
-}
-
-fn export_pdf_notes(
-    build_config: &BuildConfig,
-    compiler: &dyn TypstCompiler,
-    notes: &[PdfExportNote],
-) -> StrResult<()> {
-    if !notes.iter().any(|note| note.export_pdf) {
-        return Ok(());
-    }
-
-    let pdf_output_dir = build_config.output_directory.join("pdf");
-    fs::create_dir_all(&pdf_output_dir).map_err(|err| {
-        eco_format!(
-            "failed to create pdf output directory {}: {err}",
-            pdf_output_dir.display()
-        )
-    })?;
-
-    let additional_inputs = [("wb-id-filename-map-file", ID_FILENAME_MAP_ROOT_PATH)];
-
-    for note in notes {
-        if !note.export_pdf {
-            continue;
+pub fn prepare_compile(build_config: &BuildConfig) -> StrResult<PreparedCompile> {
+    let sources =
+        collect_typst_sources(&build_config.input_directory, &build_config.input_filters)?;
+    if sources.is_empty() {
+        if build_config.input_filters.has_filters() {
+            return Err(eco_format!(
+                "no .typ files matched input include/exclude patterns in input directory {}",
+                build_config.input_directory.display()
+            ));
         }
-
-        let output_path = pdf_output_dir.join(format!("{}.pdf", note.id));
-        let request = CompileRequest {
-            source: note.source_path.as_path(),
-            target: CompileTarget::Pdf,
-            output: CompileOutput::File(output_path.as_path()),
-            additional_inputs: &additional_inputs,
-        };
-
-        match compiler.compile(build_config, &request)? {
-            CompileArtifact::FileWritten => {}
-            CompileArtifact::Stdout(_) => {
-                return Err(eco_format!(
-                    "typst compiler returned stdout for pdf compilation of {}",
-                    note.source_path.display()
-                ));
-            }
-        }
+        return Err(eco_format!(
+            "no .typ files found in input directory {}",
+            build_config.input_directory.display()
+        ));
     }
 
-    Ok(())
+    let assets = collect_asset_files(
+        &build_config.input_directory,
+        &build_config.public_directory,
+    )?;
+    let entrypoint = render_entrypoint(&sources, &assets);
+
+    Ok(PreparedCompile { entrypoint })
 }
-
-fn build_id_filename_map(
-    build_config: &BuildConfig,
-    html_notes: &[HtmlNote],
-) -> StrResult<BTreeMap<String, String>> {
-    let mut id_filename_map = BTreeMap::new();
-
-    for note in html_notes {
-        let relative_path = note
-            .source_path
-            .strip_prefix(&build_config.input_directory)
-            .map_err(|_| {
-                eco_format!(
-                    "source path {} is not inside input directory {}",
-                    note.source_path.display(),
-                    build_config.input_directory.display()
-                )
-            })?;
-
-        let rooted_filename = to_root_absolute_filename(relative_path)?;
-        id_filename_map.insert(note.id.clone(), rooted_filename);
-    }
-
-    Ok(id_filename_map)
-}
-
-fn serialize_id_filename_map(id_filename_map: &BTreeMap<String, String>) -> StrResult<String> {
-    serde_json::to_string(id_filename_map)
-        .map_err(|err| eco_format!("failed to serialize id-filename map: {err}"))
-}
-
-fn to_root_absolute_filename(relative_path: &Path) -> StrResult<String> {
-    let mut rooted_filename = String::from("/");
-    let mut first_component = true;
-
-    for component in relative_path.components() {
-        match component {
-            Component::Normal(segment) => {
-                if !first_component {
-                    rooted_filename.push('/');
-                }
-                rooted_filename.push_str(&segment.to_string_lossy());
-                first_component = false;
-            }
-            Component::CurDir => {}
-            _ => {
-                return Err(eco_format!(
-                    "cannot convert path {} into input-root absolute filename",
-                    relative_path.display()
-                ));
-            }
-        }
-    }
-
-    Ok(rooted_filename)
-}
-
-fn write_id_filename_map(build_config: &BuildConfig, id_filename_map_json: &str) -> StrResult<()> {
-    let output_path = build_config.input_directory.join(ID_FILENAME_MAP_FILENAME);
-
-    fs::write(&output_path, id_filename_map_json).map_err(|err| {
-        eco_format!(
-            "failed to write id-filename map file {}: {err}",
-            output_path.display()
-        )
-    })
-}
-
-// /// Caches exported files so that we can avoid re-exporting them if they haven't
-// /// changed.
-// ///
-// /// This is done by having a list of size `files.len()` that contains the hashes
-// /// of the last rendered frame in each file. If a new frame is inserted, this
-// /// will invalidate the rest of the cache, this is deliberate as to decrease the
-// /// complexity and memory usage of such a cache.
-// pub struct ExportCache {
-//     /// The hashes of last compilation's frames.
-//     pub cache: RwLock<Vec<u128>>,
-// }
-
-// impl ExportCache {
-//     /// Creates a new export cache.
-//     pub fn new() -> Self {
-//         Self {
-//             cache: RwLock::new(Vec::with_capacity(32)),
-//         }
-//     }
-
-//     /// Returns true if the entry is cached and appends the new hash to the
-//     /// cache (for the next compilation).
-//     pub fn is_cached(&self, i: usize, frame: &Frame) -> bool {
-//         let hash = typst::utils::hash128(frame);
-
-//         let mut cache = self.cache.upgradable_read();
-//         if i >= cache.len() {
-//             cache.with_upgraded(|cache| cache.push(hash));
-//             return false;
-//         }
-
-//         cache.with_upgraded(|cache| std::mem::replace(&mut cache[i], hash) == hash)
-//     }
-// }
-
-// /// Print diagnostic messages to the terminal.
-// pub fn print_diagnostics(
-//     world: &SystemWorld,
-//     errors: &[SourceDiagnostic],
-//     warnings: &[SourceDiagnostic],
-//     diagnostic_format: DiagnosticFormat,
-// ) -> Result<(), codespan_reporting::files::Error> {
-//     let mut config = term::Config {
-//         tab_width: 2,
-//         ..Default::default()
-//     };
-//     if diagnostic_format == DiagnosticFormat::Short {
-//         config.display_style = term::DisplayStyle::Short;
-//     }
-
-//     for diagnostic in warnings.iter().chain(errors) {
-//         let diag = match diagnostic.severity {
-//             Severity::Error => Diagnostic::error(),
-//             Severity::Warning => Diagnostic::warning(),
-//         }
-//         .with_message(diagnostic.message.clone())
-//         .with_notes(
-//             diagnostic
-//                 .hints
-//                 .iter()
-//                 .map(|e| (eco_format!("hint: {e}")).into())
-//                 .collect(),
-//         )
-//         .with_labels(label(world, diagnostic.span).into_iter().collect());
-
-//         term::emit(&mut terminal::out(), &config, world, &diag)?;
-
-//         // Stacktrace-like helper diagnostics.
-//         for point in &diagnostic.trace {
-//             let message = point.v.to_string();
-//             let help = Diagnostic::help()
-//                 .with_message(message)
-//                 .with_labels(label(world, point.span).into_iter().collect());
-
-//             term::emit(&mut terminal::out(), &config, world, &help)?;
-//         }
-//     }
-
-//     Ok(())
-// }
-
-// /// Create a label for a span.
-// fn label(world: &SystemWorld, span: Span) -> Option<Label<FileId>> {
-//     Some(Label::primary(span.id()?, world.range(span)?))
-// }
-
-// impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
-//     type FileId = FileId;
-//     type Name = String;
-//     type Source = Source;
-
-//     fn name(&'a self, id: FileId) -> CodespanResult<Self::Name> {
-//         let vpath = id.vpath();
-//         Ok(if let Some(package) = id.package() {
-//             format!("{package}{}", vpath.as_rooted_path().display())
-//         } else {
-//             // Try to express the path relative to the working directory.
-//             vpath
-//                 .resolve(self.root())
-//                 .and_then(|abs| pathdiff::diff_paths(abs, self.workdir()))
-//                 .as_deref()
-//                 .unwrap_or_else(|| vpath.as_rootless_path())
-//                 .to_string_lossy()
-//                 .into()
-//         })
-//     }
-
-//     fn source(&'a self, id: FileId) -> CodespanResult<Self::Source> {
-//         Ok(self.lookup(id))
-//     }
-
-//     fn line_index(&'a self, id: FileId, given: usize) -> CodespanResult<usize> {
-//         let source = self.lookup(id);
-//         source
-//             .byte_to_line(given)
-//             .ok_or_else(|| CodespanError::IndexTooLarge {
-//                 given,
-//                 max: source.len_bytes(),
-//             })
-//     }
-
-//     fn line_range(&'a self, id: FileId, given: usize) -> CodespanResult<std::ops::Range<usize>> {
-//         let source = self.lookup(id);
-//         source
-//             .line_to_range(given)
-//             .ok_or_else(|| CodespanError::LineTooLarge {
-//                 given,
-//                 max: source.len_lines(),
-//             })
-//     }
-
-//     fn column_number(&'a self, id: FileId, _: usize, given: usize) -> CodespanResult<usize> {
-//         let source = self.lookup(id);
-//         source.byte_to_column(given).ok_or_else(|| {
-//             let max = source.len_bytes();
-//             if given <= max {
-//                 CodespanError::InvalidCharBoundary { given }
-//             } else {
-//                 CodespanError::IndexTooLarge { given, max }
-//             }
-//         })
-//     }
-// }

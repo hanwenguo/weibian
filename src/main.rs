@@ -1,23 +1,17 @@
 mod args;
-mod backend;
+mod bundle;
+mod compile;
 mod compiler;
 mod config;
 mod error;
-mod frontend;
-mod html;
 mod terminal;
-// mod backend;
-mod compile;
-// mod frontend;
-// mod ir;
+mod watch;
 
 use std::{cell::Cell, io, io::Write, process::ExitCode, sync::LazyLock};
 
 use args::*;
-// use backend::*;
 use clap::Parser;
 use codespan_reporting::term;
-// use frontend::*;
 use termcolor::WriteColor;
 
 use crate::error::StrResult;
@@ -55,12 +49,7 @@ fn dispatch() -> StrResult<()> {
 
     match &ARGS.command {
         Command::Compile(command) => crate::compile::compile(command, &config)?,
-        // Command::Watch(command) => crate::watch::watch(&mut timer, command)?,
-        // Command::Serve(command) => todo!(),
-        // Command::Init(command) => crate::init::init(command)?,
-        // Command::Query(command) => crate::query::query(command)?,
-        // Command::Fonts(command) => crate::fonts::fonts(command),
-        // Command::Update(command) => crate::update::update(command)?,
+        Command::Watch(command) => crate::watch::watch(command, &config)?,
     }
 
     Ok(())

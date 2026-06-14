@@ -1,13 +1,14 @@
 # Weibian: A Note System Powered by Typst
 
-Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It compiles Typst notes to HTML, then post-processes the HTML to resolve transclusion, internal links, and backmatter (backlinks/contexts/references/related notes).
+Weibian[^1] is a software for taking scientific notes in the spirit of [Forester](https://www.forester-notes.org/index/index.xml), using [Typst](https://typst.app/) as the markup language. It is built around Typst's experimental bundle export: Weibian discovers notes and assets, generates a synthetic bundle entrypoint, and delegates rendering, links, transclusion, backmatter, and HTML output to Typst templates.
 
 There is a [demo site](https://hanwenguo.github.io/weibian/) showcasing Weibian's features, built with Weibian itself as a live example.
 
 ## Requirements
 
-- Typst CLI available on your PATH (`typst`)
 - Rust toolchain only if building from source
+
+Weibian uses Typst as a library by default, so no separate Typst installation is required. If compatibility issues arise, one could switch to a compiler installed on the host system through the `--compiler host` option. Note that the host compiler must be newer than Typst 0.15 (which is in RC stage as of this writing) to work with Weibian.
 
 ## Installation
 
@@ -43,34 +44,88 @@ Using the installed binary:
 wb compile
 ```
 
-By default, Weibian reads Typst sources from `typ/`, compiles HTML in-memory, copies assets from `public/`, and outputs the final site to `dist/`. Override paths if needed:
+By default, Weibian reads Typst sources from `typ/`, copies bundle assets from `typ/public/`, and outputs the final Typst bundle to `dist/`. Override paths if needed:
 
 ```bash
 wb compile \
-  --input typ \
+  typ \
+  dist \
   --public-dir public \
-  --output dist
+  --pretty
 ```
+
+`--public-dir` is resolved relative to the input directory unless it is absolute, so `--public-dir public` means `typ/public`. Include/exclude globs in `weibian.toml` are matched against paths relative to the input directory. If you keep a handwritten bundle entrypoint such as `typ/index.typ`, exclude it explicitly to avoid duplicate `#document` or `#asset` output.
+
+`wb compile` supports most Typst compile options. Weibian owns the input/output paths, project root, output format, and feature flags, and always invokes Typst as bundle export with `bundle,html` enabled.
+
+By default, `wb compile` uses the embedded Typst-as-a-library compiler. To use a host Typst binary instead:
+
+```bash
+wb compile --compiler host
+```
+
+If the host compiler is not named `typst` or is not on `PATH`, pass its path:
+
+```bash
+wb compile --compiler host --host-compiler /path/to/typst
+```
+
+You can also set the backend in `weibian.toml`:
+
+```toml
+[compiler]
+backend = "library" # or "host"
+path = "/path/to/typst" # optional, used by the host backend
+```
+
+The Cargo features `library-compiler` and `host-compiler` are both enabled by
+default. Build with `--no-default-features --features host-compiler` for a
+host-only binary, or with `--no-default-features --features library-compiler`
+for an embedded-only binary.
+
+## Watch mode
+
+Use `wb watch` or `wb w` while editing notes:
+
+```bash
+wb watch
+```
+
+Watch mode uses the same input, output, public directory, site, compiler, and
+Typst compile flags as `wb compile`. It is currently implemented only for the
+embedded library compiler. Running `wb watch --compiler host` exits with a clear
+unsupported-backend error.
+
+By default, watch mode writes the Typst bundle to `dist/`, starts a local
+live-reload HTTP server, and reloads connected browsers after successful bundle
+updates. Server flags mirror Typst watch:
+
+```bash
+wb watch --no-serve
+wb watch --no-reload
+wb watch --port 4000
+```
+
+A binary built without the `library-compiler` Cargo feature still parses
+`wb watch`, but exits with an error explaining that watch mode requires the
+library compiler.
 
 ## Features
 
-- Utilizes Typst HTML export: just use your templates/styles
+- Utilizes Typst bundle export: just use your Typst templates/styles
 - Out-of-the-box dark mode support
 - Transclusion of notes
 - Backmatter generation (backlinks, contexts, references, related notes)
 - TOC generation
-- PDF export of individual notes
 - Include/exclude notes based on glob patterns
 
 ## Planned
 
-- Customizable post-processing hooks
 - Datalog-based querying of notes
 - Generalized backmatter
 
 After the above features are implemented, Weibian will be feature-comparable to Forester. There are also some other nice-to-have features:
 
-- Watch mode
 - More templating support
 - Parallel processing of notes
 
@@ -88,7 +143,7 @@ Weibian is following the spirit of Forester. Main differences are now:
 
 ### [Kodama](https://github.com/kokic/kodama)
 
-Kodama is a similar project that uses Typst and Markdown to manage notes. The main difference is that Kodama uses Markdown as the primary note format with good Typst support, while  uses Typst as the only note format.
+Kodama is a similar project that uses Typst and Markdown to manage notes. The main difference is that Kodama uses Markdown as the primary note format with good Typst support, while Weibian uses Typst as the only note format.
 
 ### [Typsite](https://github.com/Glomzzz/typsite)
 

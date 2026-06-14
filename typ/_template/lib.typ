@@ -38,7 +38,6 @@
 } else {
   false
 }
-#let target = sys.inputs.at("wb-target", default: none)
 
 #let _meta-item-html(body) = {
   html.li(class: "meta-item", body)
@@ -50,8 +49,8 @@
 
 #let _guard-and-render-metadata(
   name,
-  renderer
-) = (attrs) => {
+  renderer,
+) = attrs => {
   if attrs.at(name, default: none) != none {
     renderer(attrs.at(name))
   }
