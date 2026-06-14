@@ -494,13 +494,12 @@
       html.head({
         html.meta(http-equiv: "content-type", content: "text/html; charset=utf-8")
         html.meta(name: "viewport", content: "width=device-width")
-        html.meta(name: "fediverse:creator", content: "@hanwen@types.pl")
         html.link(rel: "stylesheet", href: "/css/weibian.css")
         html.link(rel: "preconnect", href: "https://fonts.googleapis.com")
         html.link(rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "anonymous")
         html.link(
           rel: "stylesheet",
-          href: "https://fonts.googleapis.com/css2?family=Libertinus+Sans:ital,wght@0,400;0,700;1,400&family=Libertinus+Serif+Display&family=Libertinus+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap",
+          href: "https://fonts.googleapis.com/css2?family=Libertinus+Sans:ital,wght@0,400;0,700;1,400&family=Libertinus+Math&family=Libertinus+Serif+Display&family=Libertinus+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap",
         )
         html.meta(name: "identifier", content: identifier)
         html.meta(name: "lang", content: lang)
