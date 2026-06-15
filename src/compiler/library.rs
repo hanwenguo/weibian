@@ -299,7 +299,9 @@ fn write_virtual_fs(root: &Path, fs: &VirtualFs) -> StrResult<Vec<PathBuf>> {
 
     fs.par_iter()
         .map(|(path, data)| {
-            let realized = path.realize(root);
+            let realized = path
+                .realize(root)
+                .map_err(|err| eco_format!("failed to realize path ({err})"))?;
 
             if let Some(parent) = realized.parent() {
                 fs::create_dir_all(parent)
@@ -479,8 +481,9 @@ impl DiagnosticWorld for LibraryWorld {
         let vpath = id.vpath();
         match id.root() {
             VirtualRoot::Project => {
-                let rooted = vpath.realize(self.root());
-                pathdiff::diff_paths(rooted, self.workdir())
+                let rooted = vpath.realize(self.root()).ok();
+                rooted
+                    .and_then(|r| pathdiff::diff_paths(r, self.workdir()))
                     .map(|path| path.to_string_lossy().into_owned())
                     .unwrap_or_else(|| vpath.get_without_slash().into())
             }
@@ -517,7 +520,7 @@ impl WeibianFiles {
         if id == self.main {
             return Err(FileError::NotFound("<weibian-entrypoint>".into()));
         }
-        Ok(self.root(id)?.resolve(id.vpath()))
+        self.root(id)?.resolve(id.vpath())
     }
 
     fn root(&self, id: FileId) -> FileResult<FsRoot> {
